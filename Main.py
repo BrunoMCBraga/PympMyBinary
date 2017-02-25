@@ -4,6 +4,13 @@ from ShellCodeGenerators.ZeroFiller import ZeroFiller
 OFFSET_TO_PE_HEADER_OFFSET = 0x3C
 OFFSET_TO_ENTRYPOINT_RVA = 0x28
 OFFSET_TO_NUMBER_OF_SECTIONS = 0x6
+
+OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER = 0X8
+OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER = 0XC
+OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER = 0x10
+OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER = 0X14
+
+
 OFFSET_TO_SIZE_OF_CODE = 0x1C
 OFFSET_TO_BASE_OF_CODE_RVA = 0x2C
 OFFSET_TO_BASE_OF_DATA_RVA = 0x30
@@ -11,11 +18,13 @@ OFFSET_TO_SECTION_ALIGNMENT = 0x38
 OFFSET_TO_FILE_ALIGNMENT = 0x3C
 OFFSET_TO_SIZE_OF_IMAGE = 0x50
 
+
+OFFSET_TO_DATA_DIRECTORIES_HEADER = 0x78
+SIZE_OF_DATA_DIRECTORY_HEADER_ENTRY =  0x8
+DATA_DIRECTORIES_HEADER_SIZE = 0x10
+
 OFFSET_TO_BEGINNING_OF_SECTION_HEADERS = 0xF8
-OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER = 0X8
-OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER = 0XC
-OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER = 0x10
-OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER = 0X14
+
 
 SECTION_HEADER_SIZE = 0x28
 BITS_PER_BYTE = 8
@@ -87,7 +96,10 @@ def inject_shell_code_at_offset(binary_data, offset, shell_code):
     first_half.extend(second_half)
     return first_half
 
-
+#TODO: Implemente relocation
+#Implement rsrc
+#Implement IMPORT
+#implement EXPORT
 def adjust_headers(binary_data, header_offset, section_header_offset, number_of_sections, index_of_section_containing_shell_code, shell_code_size):
 
     #Set Size of Code field
@@ -98,38 +110,36 @@ def adjust_headers(binary_data, header_offset, section_header_offset, number_of_
     section_alignment = get_dword_given_offset(binary_data, header_offset+OFFSET_TO_SECTION_ALIGNMENT)
     file_alignment = get_dword_given_offset(binary_data, header_offset+OFFSET_TO_FILE_ALIGNMENT)
 
+    # Adjust data directories table RVAs
 
-      # -Get end of binary section - done
-      #Size of image
+    virtual_section_rva_offset = section_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+    virtual_section_rva = get_dword_given_offset(binary_data, virtual_section_rva_offset)
 
-        #-Change entrypoint
-       #-Change Size of image
-       #-Base of data
-       #-Number of RVA and Sizes?
+    virtual_section_size_offset = section_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
+    virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
 
-       #For each section after the code:
-       #-VirtualAddress (RVA)
-      # #-PointerToRawData
-       #-Pointer to relocations
-       #-Pointer to line numbers
+    data_directories_header_offset = header_offset + OFFSET_TO_DATA_DIRECTORIES_HEADER
+    for data_directory_index in range(0, DATA_DIRECTORIES_HEADER_SIZE):
+        data_directory_rva_offset = data_directories_header_offset + data_directory_index * SIZE_OF_DATA_DIRECTORY_HEADER_ENTRY
+        data_directory_rva = get_dword_given_offset(binary_data, data_directory_rva_offset)
+        if data_directory_rva >= virtual_section_rva + virtual_section_size:
+            print(hex(data_directory_rva))
+            set_dword_given_offset(binary_data, data_directory_rva + shell_code_size, data_directory_rva_offset)
 
-      #Adjusting code section
-    current_header_offset = section_header_offset
+
 
     #Set virtual section size for shellcoded section
-    virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
-    virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
     virtual_section_size += shell_code_size
     set_dword_given_offset(binary_data, virtual_section_size, virtual_section_size_offset)
 
     # Set raw section size for shellcoded section
-    raw_section_size_offset = current_header_offset + OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
+    raw_section_size_offset = section_header_offset + OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
     raw_section_size = get_dword_given_offset(binary_data, raw_section_size_offset)
     raw_section_size += shell_code_size
     set_dword_given_offset(binary_data, raw_section_size, raw_section_size_offset)
 
-
-    #If the base of cod and/or data is after the section with the shellcode, need to update header.
+     #If the base of code and/or data is after the section with the shellcode, need to update header. The update
+    #will be inside the for
     base_of_code_rva_offset = header_offset + OFFSET_TO_BASE_OF_CODE_RVA
     base_of_code_rva = get_dword_given_offset(binary_data, base_of_code_rva_offset)
 
@@ -137,10 +147,11 @@ def adjust_headers(binary_data, header_offset, section_header_offset, number_of_
     base_of_data_rva = get_dword_given_offset(binary_data, base_of_data_rva_offset)
 
     #Moving to the nextion section header
-    current_header_offset += SECTION_HEADER_SIZE
+    section_header_offset += SECTION_HEADER_SIZE
+
 
     for section_index in range(0, number_of_sections - index_of_section_containing_shell_code - 1):
-        virtual_section_rva_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+        virtual_section_rva_offset = section_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
         virtual_section_rva = get_dword_given_offset(binary_data, virtual_section_rva_offset)
         base_of_code_or_data = None
 
@@ -150,24 +161,21 @@ def adjust_headers(binary_data, header_offset, section_header_offset, number_of_
             base_of_code_or_data = base_of_data_rva
 
         virtual_section_rva += shell_code_size
-        last_virtual_section_rva = virtual_section_rva
         set_dword_given_offset(binary_data, virtual_section_rva, virtual_section_rva_offset)
 
         if base_of_code_or_data != None:
             set_dword_given_offset(binary_data,virtual_section_rva, base_of_code_or_data)
 
-        raw_section_offset_offset = current_header_offset + OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
+        raw_section_offset_offset = section_header_offset + OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
         raw_section_offset = get_dword_given_offset(binary_data, raw_section_offset_offset)
         raw_section_offset += shell_code_size
         set_dword_given_offset(binary_data, raw_section_offset, raw_section_offset_offset)
 
-        virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
-
-        current_header_offset += SECTION_HEADER_SIZE
+        section_header_offset += SECTION_HEADER_SIZE
 
     #Sets size of image aligned to SectionAlignment
     size_of_image_offset = header_offset + OFFSET_TO_SIZE_OF_IMAGE
-    current_size_of_image = get_dword_given_offset(binary_data, size_of_code_offset)
+    current_size_of_image = get_dword_given_offset(binary_data, size_of_image_offset)
     unaligned_size_of_image = current_size_of_image + shell_code_size
     aligned_size_of_image = unaligned_size_of_image + (section_alignment - (unaligned_size_of_image % section_alignment))
     set_dword_given_offset(binary_data, aligned_size_of_image, size_of_image_offset)
