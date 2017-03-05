@@ -135,8 +135,50 @@ class Win32BinaryModifier:
         aligned_size_of_image = unaligned_size_of_image + (section_alignment - (unaligned_size_of_image % section_alignment))
         MultiByteHandler.set_dword_given_offset(self.binary, size_of_image_offset, aligned_size_of_image)
 
+    def adjust_resource_table(self):
+        offset_to_resource_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA
+        resource_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_resource_table_rva_within_header)
+        resource_table_raw_offset = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, resource_table_rva)
+
+        offset_to_number_of_id_entries_within_resource_directory_type = resource_table_raw_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
+        number_of_id_entries_within_resource_directory_type = MultiByteHandler.get_word_given_offset(self.binary, offset_to_number_of_id_entries_within_resource_directory_type)
+        pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type = offset_to_number_of_id_entries_within_resource_directory_type + 0x2
+        offset_to_offset_to_directory_of_a_type_within_nameid = pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type + 0x4
+
+        for id_entry_within_resource_directory_type in range(0, number_of_id_entries_within_resource_directory_type):
+
+            offset_to_directory_of_a_type_within_nameid = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary, offset_to_offset_to_directory_of_a_type_within_nameid)
+            offset_to_number_of_id_entries_within_nameid = resource_table_raw_offset + offset_to_directory_of_a_type_within_nameid + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
+            number_of_id_entries_within_nameid = MultiByteHandler.get_word_given_offset(self.binary, offset_to_number_of_id_entries_within_nameid)
+            offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid = offset_to_number_of_id_entries_within_nameid + 0x2
+            offset_to_offset_to_directory_within_language = offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid + 0x4
+
+            for id_entry_within_nameid_language in range(0, number_of_id_entries_within_nameid):
+
+                offset_to_directory_of_a_type_within_language = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary, offset_to_offset_to_directory_within_language)
+                offset_to_offset_to_data_entry_within_data_entry = resource_table_raw_offset + offset_to_directory_of_a_type_within_language + Win32BinaryOffsetsAndSizes.OFFSET_TO_OFFSET_TO_DATA_ENTRY_WITHIN_LANGUAGE
+                offset_to_data_entry_within_data_entry = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary, offset_to_offset_to_data_entry_within_data_entry)
+                offset_to_rva_within_data_entry = resource_table_raw_offset + offset_to_data_entry_within_data_entry
+                rva_of_data = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_rva_within_data_entry)
+                MultiByteHandler.set_dword_given_offset(self.binary, offset_to_rva_within_data_entry, rva_of_data + len(self.shell_code))
+                offset_to_offset_to_directory_within_language += 0x8
+            offset_to_offset_to_directory_of_a_type_within_nameid += 0x8
+
     def adjust_data_directories(self):
-        pass
+
+        entrypoint_rva_offset_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
+        entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_rva_offset_within_header)
+        entrypoint_section_header_index_and_offset = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(self.binary, self.header_offset, entrypoint_rva)
+        offset_of_header_of_section_containing_entrypoint = entrypoint_section_header_index_and_offset[1]
+
+        entrypoint_virtual_section_rva_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+        entrypoint_virtual_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_virtual_section_rva_offset)
+
+        offset_to_resource_section_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA
+        resource_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_resource_section_rva_within_header)
+
+        if resource_section_rva > entrypoint_virtual_section_rva:
+            self.adjust_resource_table()
 
     '''
         1.Modify Virtual and Raw sizes of section containing shellcode
