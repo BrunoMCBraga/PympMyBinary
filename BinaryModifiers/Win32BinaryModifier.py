@@ -164,6 +164,9 @@ class Win32BinaryModifier:
                 offset_to_offset_to_directory_within_language += 0x8
             offset_to_offset_to_directory_of_a_type_within_nameid += 0x8
 
+        #Adjusting RVA on Data Directories header.
+        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_resource_table_rva_within_header, resource_table_rva + len(self.shell_code))
+
     def adjust_data_directories(self):
 
         entrypoint_rva_offset_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
