@@ -11,4 +11,4 @@ Win32 binary modifier and supporting classes assume the following model:
 
 
 
-PEView has been my reference softwate to check for binary correctness. 
+PEView has been my reference softwate to check for binary correctness.

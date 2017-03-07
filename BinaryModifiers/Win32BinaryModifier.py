@@ -220,7 +220,25 @@ class Win32BinaryModifier:
         # Adjusting RVA on Data Directories header.
         MultiByteHandler.set_dword_given_offset(self.binary, offset_to_import_table_rva, import_table_rva + len(self.shell_code))
 
+    def adjust_certificate_table(self):
+
+        offset_to_certificate_table_rva = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
+        certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_certificate_table_rva)
+        print(hex(certificate_table_rva))
+        print(hex(len(self.shell_code)))
+
+        # Adjusting RVA on Data Directories header.
+        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_certificate_table_rva, certificate_table_rva + len(self.shell_code))
+
+
     def adjust_data_directories(self):
+
+        offset_to_import_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_TABLE_RVA
+        import_table_rva = MultiByteHandler.get_dword_given_offset(self.binary,
+                                                                   offset_to_import_table_rva_within_header)
+        if import_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, import_table_rva):
+            self.adjust_import_table()
+
 
         offset_to_resource_section_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA
         resource_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_resource_section_rva_within_header)
@@ -228,13 +246,11 @@ class Win32BinaryModifier:
         if resource_section_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, resource_section_rva):
             self.adjust_resource_table()
 
-        offset_to_import_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_TABLE_RVA
-        import_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_import_table_rva_within_header)
+        offset_to_certificate_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
+        certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_certificate_table_rva_within_header)
 
-        if import_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, import_table_rva):
-            self.adjust_import_table()
-
-
+        if certificate_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, certificate_table_rva):
+            self.adjust_certificate_table()
 
     '''
         1.Modify Virtual and Raw sizes of section containing shellcode
