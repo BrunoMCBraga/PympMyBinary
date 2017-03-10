@@ -7,7 +7,7 @@ from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
 
 BINARIES_PATH='./Binaries/'
 CLEAN_BINARY= 'TestBinary.exe'
-INFECTED_BINARY = CLEAN_BINARY+'.inf'
+INFECTED_BINARY = 'PympedBinary.exe'
 
 
 if __name__=='__main__':

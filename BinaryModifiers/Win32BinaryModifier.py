@@ -1,6 +1,7 @@
 from Utils.Win32BinaryOffsetsAndSizes import Win32BinaryOffsetsAndSizes
 from Utils.Win32BinaryUtils import Win32BinaryUtils
 from Utils.MultiByteHandler import MultiByteHandler
+from Utils.GenericConstants import GenericConstants
 
 '''
 1.Adjust size of code, Address of Entrypoint, Base of Code, Base of Data
@@ -53,11 +54,9 @@ class Win32BinaryModifier:
         '''
         pass
 
-    def adjust_size_of_code_header_field(self):
-        pass
 
 
-    def get_padded_shell_code(self):
+    def get_shell_code_aligned_to_file_alignment(self):
         entrypoint_rva_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_rva_offset)
 
@@ -224,8 +223,6 @@ class Win32BinaryModifier:
 
         offset_to_certificate_table_rva = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
         certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_certificate_table_rva)
-        print(hex(certificate_table_rva))
-        print(hex(len(self.shell_code)))
 
         # Adjusting RVA on Data Directories header.
         MultiByteHandler.set_dword_given_offset(self.binary, offset_to_certificate_table_rva, certificate_table_rva + len(self.shell_code))
@@ -298,9 +295,39 @@ class Win32BinaryModifier:
 
             current_section_header_offset += Win32BinaryOffsetsAndSizes.SECTION_HEADER_SIZE
 
+    def update_checksum(self):
 
+        #Clear checksum
+        image_checksum_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
+        checksum = MultiByteHandler.get_dword_given_offset(self.binary, image_checksum_offset)
+        MultiByteHandler.set_dword_given_offset(self.binary, image_checksum_offset, 0x0)
+
+        checksum = 0x0
+        word_index = 0x0
+        has_odd_byte = True if len(self.binary) % Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT == 1 else False
+
+
+        while word_index < len(self.binary):
+            if word_index == image_checksum_offset:
+                print("Reached checksum")
+                word_index += Win32BinaryOffsetsAndSizes.CHECKSUM_SIZE
+            else:
+                checksum += MultiByteHandler.get_word_given_offset(self.binary, word_index)
+                checksum & GenericConstants.DWORD_MASK
+                #checksum += (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT)
+                word_index += Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT
+
+        if has_odd_byte:
+            checksum += self.binary[-1]
+
+        checksum = (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT*GenericConstants.BITS_PER_BYTE) + (checksum & 0xFFFF)
+        checksum += (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT*GenericConstants.BITS_PER_BYTE)
+        checksum = (checksum & 0xFFFF)
+        checksum += len(self.binary)
+        MultiByteHandler.set_dword_given_offset(self.binary,image_checksum_offset,checksum)
 
     def modify_binary(self):
+
 
         entrypoint_rva_offset_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_rva_offset_within_header)
@@ -313,12 +340,14 @@ class Win32BinaryModifier:
         raw_section_size_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
         raw_section_size = MultiByteHandler.get_dword_given_offset(self.binary, raw_section_size_offset)
 
-        self.shell_code = self.get_padded_shell_code()
+        self.shell_code = self.get_shell_code_aligned_to_file_alignment()
         self.adjust_standard_coff_fields()
         self.adjust_windows_specific_headers()
         self.adjust_data_directories()
         self.adjust_section_headers()
         self.inject_shell_code_at_offset(raw_section_offset + raw_section_size)
+        self.update_checksum()
+
 
 
     def get_result(self):
