@@ -48,7 +48,6 @@ class Win32BinaryModifier:
         return (section_alignment - mod_result) if mod_result != 0x0 else 0x0
 
     def inject_shell_code_at_offset(self, offset):
-        shell_code_size = len(self.shell_code)
         first_half = self.binary[0:offset]
         second_half = self.binary[offset:]
         first_half.extend(self.shell_code)
@@ -92,7 +91,7 @@ class Win32BinaryModifier:
         # Set size of code
         size_of_code_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_CODE
         current_size_of_code = MultiByteHandler.get_dword_given_offset(self.binary, size_of_code_offset)
-        MultiByteHandler.set_dword_given_offset(self.binary, size_of_code_offset, current_size_of_code + len(self.shell_code) + self.rva_delta)
+        MultiByteHandler.set_dword_given_offset(self.binary, size_of_code_offset, current_size_of_code + len(self.shell_code))
 
 
         # Set base of code RVA: since i am inserting the shell code on the section containing the entrypoint, i must verify
@@ -103,7 +102,7 @@ class Win32BinaryModifier:
         entrypoint_rva_offset_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_rva_offset_within_header)
         offset_of_header_of_section_containing_entrypoint = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(self.binary, self.header_offset, entrypoint_rva)[1]
-        entrypoint_section_rva = MultiByteHandler.get_dword_given_offset(self.binary,offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER)
+        entrypoint_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
 
         if current_base_of_code_rva > entrypoint_section_rva:
             MultiByteHandler.set_dword_given_offset(self.binary, base_of_code_rva_offset_within_header, current_base_of_code_rva + len(self.shell_code) + self.rva_delta)
@@ -126,19 +125,25 @@ class Win32BinaryModifier:
         entrypoint_rva_offset_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary, entrypoint_rva_offset_within_header)
         offset_of_header_of_section_containing_entrypoint = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(self.binary, self.header_offset, entrypoint_rva)[1]
-        entrypoint_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER)
+        entrypoint_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
 
         if current_base_of_data > entrypoint_section_rva:
             MultiByteHandler.set_dword_given_offset(self.binary, base_of_data_rva_offset_within_header, current_base_of_data + len(self.shell_code) + self.rva_delta)
 
-
-        # Sets size of image aligned to SectionAlignment
         size_of_image_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_IMAGE
-        current_size_of_image = MultiByteHandler.get_dword_given_offset(self.binary, size_of_image_offset)
-        unaligned_size_of_image = current_size_of_image + len(self.shell_code) + self.rva_delta
-        aligned_size_of_image = unaligned_size_of_image + self.compute_padding_size_for_section_alignment(unaligned_size_of_image)
+        rva_and_virtual_size_of_last_section = Win32BinaryUtils.get_rva_and_virtual_size_for_last_section(self.binary, self.header_offset)
+        potentially_unaligned_size_of_image = rva_and_virtual_size_of_last_section[0] + rva_and_virtual_size_of_last_section[1]
+        aligned_size_of_image = potentially_unaligned_size_of_image + self.compute_padding_size_for_section_alignment(potentially_unaligned_size_of_image)
 
         MultiByteHandler.set_dword_given_offset(self.binary, size_of_image_offset, aligned_size_of_image)
+
+        # Sets size of image aligned to SectionAlignment
+        '''
+            size_of_image_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_IMAGE
+            current_size_of_image = MultiByteHandler.get_dword_given_offset(self.binary, size_of_image_offset)
+            unaligned_size_of_image = current_size_of_image + len(self.shell_code) + self.rva_delta
+            aligned_size_of_image = unaligned_size_of_image + self.compute_padding_size_for_section_alignment(unaligned_size_of_image)
+        '''
 
     '''
         TODO: Consider the size for the resource table.
@@ -190,9 +195,9 @@ class Win32BinaryModifier:
         current_import_directory_table_entry = import_table_raw
 
         while(True):
-            if not Win32BinaryUtils.is_end_of_import_directory_table(self.binary, current_import_directory_table_entry):
-                break
 
+            if Win32BinaryUtils.is_end_of_import_directory_table(self.binary, current_import_directory_table_entry):
+                break
             offset_to_import_name_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_NAME_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_name_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_import_name_table_rva)
             if import_name_table_rva != 0x0:
@@ -270,37 +275,33 @@ class Win32BinaryModifier:
         raw_section_size += len(self.shell_code)
         MultiByteHandler.set_dword_given_offset(self.binary, raw_section_size_offset, raw_section_size)
 
+
         number_of_sections_offset = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS
         number_of_sections = MultiByteHandler.get_word_given_offset(self.binary, number_of_sections_offset)
         remaining_sections_after_shell_code_section = number_of_sections - (section_header_index_and_offset[0] + 1)
 
         # Moving to the next section header
-        current_section_header_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.SECTION_HEADER_SIZE
+        current_section_header_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
 
         for section_index in range(0, remaining_sections_after_shell_code_section):
 
-            virtual_section_rva_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+            virtual_section_rva_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
             virtual_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, virtual_section_rva_offset)
             virtual_section_rva += (len(self.shell_code) + self.rva_delta)
 
             MultiByteHandler.set_dword_given_offset(self.binary, virtual_section_rva_offset, virtual_section_rva)
 
-            raw_section_offset_offset =  current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
+            raw_section_offset_offset =  current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER
             raw_section_offset = MultiByteHandler.get_dword_given_offset(self.binary, raw_section_offset_offset)
             raw_section_offset += len(self.shell_code)
             MultiByteHandler.set_dword_given_offset(self.binary, raw_section_offset_offset, raw_section_offset)
 
-            current_section_header_offset += Win32BinaryOffsetsAndSizes.SECTION_HEADER_SIZE
-
-        '''
-         Since the RVA for the first section after the one containing the shellcode may have suffered a change on its RVA, we need to extend the virtual size taking
-         into account the next section RVA delta.
-        '''
-        virtual_section_size_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
-        virtual_section_size = MultiByteHandler.get_dword_given_offset(self.binary, virtual_section_size_offset)
+            current_section_header_offset += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
 
         # Set virtual section size for shellcoded section
-        virtual_section_size += (len(self.shell_code) + self.rva_delta)
+        virtual_section_size_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
+        virtual_section_size = MultiByteHandler.get_dword_given_offset(self.binary, virtual_section_size_offset)
+        virtual_section_size += (len(self.shell_code) + 0xDF) #0xDE-0xDF!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         MultiByteHandler.set_dword_given_offset(self.binary, virtual_section_size_offset, virtual_section_size)
 
     def update_checksum(self):
@@ -317,7 +318,6 @@ class Win32BinaryModifier:
 
         while word_index < len(self.binary):
             if word_index == image_checksum_offset:
-                print("Reached checksum")
                 word_index += Win32BinaryOffsetsAndSizes.CHECKSUM_SIZE
             else:
                 checksum += MultiByteHandler.get_word_given_offset(self.binary, word_index)
@@ -348,10 +348,10 @@ class Win32BinaryModifier:
         number_of_sections = MultiByteHandler.get_word_given_offset(self.binary, number_of_sections_offset)
 
         # Moving to the next section header
-        current_section_header_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.SECTION_HEADER_SIZE
+        current_section_header_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
 
 
-        virtual_section_rva_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_ADDRESS_WITHIN_SECTION_HEADER
+        virtual_section_rva_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
         virtual_section_rva = MultiByteHandler.get_dword_given_offset(self.binary, virtual_section_rva_offset)
         virtual_rva_delta = self.compute_padding_size_for_section_alignment(virtual_section_rva + len(self.shell_code))
 
@@ -360,7 +360,7 @@ class Win32BinaryModifier:
             virtual_section_rva += virtual_rva_delta
             self.rva_delta += virtual_rva_delta
 
-        current_section_header_offset += Win32BinaryOffsetsAndSizes.SECTION_HEADER_SIZE
+        current_section_header_offset += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
 
     def modify_binary(self):
 
@@ -370,7 +370,7 @@ class Win32BinaryModifier:
         section_header_index_and_offset = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(self.binary, self.header_offset, entrypoint_rva)
         offset_of_header_of_section_containing_entrypoint = section_header_index_and_offset[1]
 
-        raw_section_offset_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_ADDRESS_WITHIN_SECTION_HEADER
+        raw_section_offset_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER
         raw_section_offset = MultiByteHandler.get_dword_given_offset(self.binary, raw_section_offset_offset)
 
         raw_section_size_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER
