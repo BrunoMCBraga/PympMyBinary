@@ -212,8 +212,93 @@ class Win32BinaryModifier:
         # Adjusting RVA on Data Directories header.
         MultiByteHandler.set_dword_given_offset(self.binary, offset_to_certificate_table_rva, certificate_table_rva + self.rva_delta)
 
+    def adjust_export_table(self):
+
+        offset_to_export_table_rva = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_EXPORT_TABLE_RVA
+        export_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_export_table_rva)
+        export_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, export_table_rva)
+
+        #Adjusting name RVA
+        offset_to_name_rva_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_NAME_RVA_WITHIN_EXPORT_DIRECTORY_TABLE
+        name_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_name_rva_within_export_directory_table)
+        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_name_rva_within_export_directory_table, name_rva + self.rva_delta)
+
+        #Adjusting ordinal table rva
+        offset_to_ordinal_table_rva_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ORDINAL_TABLE_RVA_WITHIN_EXPORT_DIRECTORY_TABLE
+        ordinal_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_ordinal_table_rva_within_export_directory_table)
+        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_ordinal_table_rva_within_export_directory_table, ordinal_table_rva + self.rva_delta)
+
+        #Adjusting function table RVAs
+        offset_to_address_table_rva_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_TABLE_RVA_WITHIN_EXPORT_DIRECTORY_TABLE
+        address_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_address_table_rva_within_export_directory_table)
+
+        offset_to_number_of_functions_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_FUNCTIONS_WITHIN_EXPORT_DIRECTORY_TABLE
+        number_of_functions = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_number_of_functions_within_export_directory_table)
+
+        function_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, address_table_rva)
+
+
+        for functions_index in range(0, number_of_functions):
+            function_rva = MultiByteHandler.get_dword_given_offset(self.binary, function_table_raw)
+            MultiByteHandler.set_dword_given_offset(self.binary, function_table_raw, function_rva + self.rva_delta)
+            function_table_raw += 0x4
+
+        #Adjusting name table RVAs
+        offset_to_name_pointer_table_rva_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_NAME_POINTER_TABLE_RVA_WITHIN_EXPORT_DIRECTORY_TABLE
+        name_pointer_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_name_pointer_table_rva_within_export_directory_table)
+
+        offset_to_number_of_names_within_export_directory_table = export_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_NAMES_WITHIN_EXPORT_DIRECTORY_TABLE
+        number_of_names = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_number_of_names_within_export_directory_table)
+
+        name_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, name_pointer_table_rva)
+
+        for names_index in range(0, number_of_names):
+            name_rva = MultiByteHandler.get_dword_given_offset(self.binary, name_table_raw)
+            MultiByteHandler.set_dword_given_offset(self.binary, name_table_raw, name_rva + self.rva_delta)
+            name_table_raw += 0x4
+
+        # Adjusting RVA on Data Directories header.
+        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_export_table_rva, export_table_rva + self.rva_delta)
+
+    def adjust_base_relocation_table(self):
+
+        offset_to_base_relocation_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
+        base_relocation_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_base_relocation_table_rva_within_header)
+
+        offset_to_base_relocation_table_size = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_SIZE
+        base_relocation_table_size = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_base_relocation_table_size)
+
+        base_relocation_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, base_relocation_table_rva)
+        current_base_relocation_table_raw = base_relocation_table_raw
+
+        while current_base_relocation_table_raw < base_relocation_table_raw + base_relocation_table_size:
+            rva_of_block = MultiByteHandler.get_dword_given_offset(self.binary, current_base_relocation_table_raw)
+            size_of_block = MultiByteHandler.get_dword_given_offset(self.binary, current_base_relocation_table_raw + 0x4)
+            if Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, rva_of_block):
+                current_base_relocation_table_raw += size_of_block
+                continue
+
+            MultiByteHandler.set_dword_given_offset(self.binary, current_base_relocation_table_raw, rva_of_block + self.rva_delta)
+            type_rva_offset = current_base_relocation_table_raw + 0x8 #Type RVA entries start two dwords after the beginning of the block
+            number_of_type_rva_entries = (size_of_block - 0x8)/0x2
+            for type_rva_index in range(0, number_of_type_rva_entries):
+                type_rva = MultiByteHandler.get_word_given_offset(self.binary, type_rva_offset)
+                if type_rva != 0x0:
+                    MultiByteHandler.set_word_given_offset(self.binary, type_rva_offset, type_rva + self.rva_delta)
+                type_rva_offset += 0x4
+
+            current_base_relocation_table_raw += size_of_block
+
+
+
 
     def adjust_data_directories(self):
+
+        offset_to_export_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_EXPORT_TABLE_RVA
+        export_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_export_table_rva_within_header)
+        if export_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, export_table_rva):
+            self.adjust_export_table()
+
 
         offset_to_import_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_TABLE_RVA
         import_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_import_table_rva_within_header)
@@ -227,11 +312,32 @@ class Win32BinaryModifier:
         if resource_section_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, resource_section_rva):
             self.adjust_resource_table()
 
+        #self.adjust_exception_table()
+
         offset_to_certificate_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
         certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_certificate_table_rva_within_header)
 
         if certificate_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, certificate_table_rva):
             self.adjust_certificate_table()
+
+        offset_to_base_relocation_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
+        base_relocation_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_base_relocation_table_rva_within_header)
+
+        if certificate_table_rva != 0x0 and Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, base_relocation_table_rva):
+            self.adjust_base_relocation_table()
+
+        '''
+        self.adjust_base_relocation_table()
+        self.adjust_debug()
+        self.architecture_data()
+        self.global_ptr()
+        self.tls_table()
+        self.load_config_table()
+        self.bound_import()
+        self.import_address_table()
+        self.delay_import_descriptor()
+        self.clr_runtime_header()
+        '''
 
     '''
         1.Modify Virtual and Raw sizes of section containing shellcode
@@ -343,7 +449,6 @@ class Win32BinaryModifier:
 
         # Since the sections are aligned on the original binary, the RVA delta should remain the same after the first computation.
         if virtual_rva_delta != 0x0:
-            print("Delta")
             self.rva_delta = (minimum_rva_for_next_section + virtual_rva_delta - virtual_section_rva)
 
 
@@ -365,11 +470,6 @@ class Win32BinaryModifier:
         padded_shell_code = self.shell_code_generator.get_padded_shell_code(padding_size)
 
 
-        # Moving to the next section header
-        current_section_header_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
-
-        raw_section_offset_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER
-        raw_section_offset = MultiByteHandler.get_dword_given_offset(self.binary, raw_section_offset_offset)
 
         self.shell_code = padded_shell_code
 

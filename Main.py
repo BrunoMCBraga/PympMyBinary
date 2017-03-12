@@ -6,16 +6,21 @@ from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
 
 
 BINARIES_PATH='./Binaries/'
-CLEAN_BINARY= 'TestBinary.exe'
-INFECTED_BINARY = 'PympedBinary.exe'
+CLEAN_EXE= 'TestBinary.exe'
+INFECTED_EXE = 'PympedBinary.exe'
+CLEAN_DLL = 'TestBinary.dll'
+INFECTED_DLL = 'PympedBinary.dll'
 
 
 if __name__=='__main__':
 
     binary = None
 
-    with open(BINARIES_PATH+CLEAN_BINARY, "rb") as f:
-        binary = bytearray(f.read())
+    #with open(BINARIES_PATH+CLEAN_EXE, "rb") as f:
+    #    binary = bytearray(f.read())
+
+    with open(BINARIES_PATH + CLEAN_DLL, "rb") as f:
+         binary = bytearray(f.read())
 
     shellcode_generator = GarbageGenerator()
     binary_modifier = Win32BinaryModifier()
@@ -24,7 +29,7 @@ if __name__=='__main__':
     binary_modifier.modify_binary()
 
     infected_binary = binary_modifier.get_result()
-    infected_binary_path = BINARIES_PATH+INFECTED_BINARY
+    infected_binary_path = BINARIES_PATH + INFECTED_DLL
     try:
         os.remove(infected_binary_path)
     except OSError:
