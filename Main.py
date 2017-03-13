@@ -1,6 +1,7 @@
 import os
 
 from ShellCodeGenerators.GarbageGenerator import GarbageGenerator
+from ShellCodeGenerators.GarbageGeneratorXL import GarbageGeneratorXL
 from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
 
 
@@ -22,7 +23,7 @@ if __name__=='__main__':
     with open(BINARIES_PATH + CLEAN_DLL, "rb") as f:
          binary = bytearray(f.read())
 
-    shellcode_generator = GarbageGenerator()
+    shellcode_generator = GarbageGeneratorXL()
     binary_modifier = Win32BinaryModifier()
     binary_modifier.set_binary(binary)
     binary_modifier.set_shell_code_generator(shellcode_generator)

@@ -38,6 +38,7 @@ class Win32BinaryUtils:
     @staticmethod
     def rva_requires_change(binary, header_offset, rva):
 
+        #For entrypoint
         entrypoint_rva_offset_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(binary, entrypoint_rva_offset_within_header)
         entrypoint_section_header_index_and_offset = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary, header_offset, entrypoint_rva)
@@ -46,7 +47,15 @@ class Win32BinaryUtils:
         entrypoint_virtual_section_rva_offset = offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
         entrypoint_virtual_section_rva = MultiByteHandler.get_dword_given_offset(binary, entrypoint_virtual_section_rva_offset)
 
-        if rva > entrypoint_virtual_section_rva:
+
+        #For given RVA
+        section_header_index_and_offset_for_section_containing_given_rva = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary, header_offset, rva)
+        offset_of_header_of_section_containing_given_rva = section_header_index_and_offset_for_section_containing_given_rva[1]
+
+        virtual_section_rva_offset_for_section_containing_given_rva = offset_of_header_of_section_containing_given_rva + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
+        virtual_section_rva_for_section_containing_given_rva = MultiByteHandler.get_dword_given_offset(binary, virtual_section_rva_offset_for_section_containing_given_rva)
+
+        if virtual_section_rva_for_section_containing_given_rva > entrypoint_virtual_section_rva:
             return True
 
     #Import address table ends five sequences of 0x0 dwords
