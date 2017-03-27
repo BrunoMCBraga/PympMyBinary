@@ -188,6 +188,15 @@ class Win32BinaryModifier:
             offset_to_import_name_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_NAME_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_name_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_import_name_table_rva)
             if import_name_table_rva != 0x0:
+                raw_offset_for_import_name_table = Win32BinaryUtils.convert_rva_to_raw(self.binary,  self.header_offset, import_name_table_rva)
+                while True:
+                    hint_name_rva_or_ordinal = MultiByteHandler.get_dword_given_offset(self.binary, raw_offset_for_import_name_table)
+                    if hint_name_rva_or_ordinal == 0x0:
+                        break
+                    if (0x80000000 & hint_name_rva_or_ordinal) != 0x80000000:
+                        MultiByteHandler.set_dword_given_offset(self.binary, raw_offset_for_import_name_table, hint_name_rva_or_ordinal + self.rva_delta)
+                    raw_offset_for_import_name_table += 0x4  # Each hint/name/ordinal takes 4 bytes (dword)
+
                 MultiByteHandler.set_dword_given_offset(self.binary, offset_to_import_name_table_rva, import_name_table_rva + self.rva_delta)
 
             offset_to_name_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_NAME_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
@@ -198,7 +207,7 @@ class Win32BinaryModifier:
             offset_to_import_address_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_ADDRESS_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_address_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_import_address_table_rva)
             if import_address_table_rva != 0x0:
-                raw_offset_for_import_address_table = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset,import_address_table_rva)
+                raw_offset_for_import_address_table = Win32BinaryUtils.convert_rva_to_raw(self.binary, self.header_offset, import_address_table_rva)
                 while True:
                     hint_name_rva_or_ordinal = MultiByteHandler.get_dword_given_offset(self.binary,raw_offset_for_import_address_table)
                     if hint_name_rva_or_ordinal == 0x0:
@@ -320,7 +329,7 @@ class Win32BinaryModifier:
 
     def adjust_tls_table(self):
 
-        offset_to_tls_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
+        offset_to_tls_table_rva_within_header = self.header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_TLS_TABLE_RVA
         tls_table_rva = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_tls_table_rva_within_header)
 
         if tls_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary, self.header_offset, tls_table_rva):
@@ -423,13 +432,12 @@ class Win32BinaryModifier:
 
         offset_to_security_cookie_va_within_load_config_directory = load_config_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECURITY_COOKIE_VA_WITHIN_LOAD_CONFIG_DIRECTORY
         security_cookie_va = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_security_cookie_va_within_load_config_directory)
-        print(hex(security_cookie_va))
         if security_cookie_va != 0x0:
             MultiByteHandler.set_dword_given_offset(self.binary, offset_to_security_cookie_va_within_load_config_directory,  security_cookie_va + self.rva_delta)
 
         offset_to_se_handler_table_va_within_load_config_directory = load_config_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_SE_HANDLER_TABLE_VA_WITHIN_LOAD_CONFIG_DIRECTORY
         se_handler_table_va = MultiByteHandler.get_dword_given_offset(self.binary, offset_to_se_handler_table_va_within_load_config_directory)
-        print(hex(se_handler_table_va))
+
         if se_handler_table_va != 0x0:
             MultiByteHandler.set_dword_given_offset(self.binary, offset_to_se_handler_table_va_within_load_config_directory, se_handler_table_va + self.rva_delta)
 
@@ -637,6 +645,7 @@ class Win32BinaryModifier:
 
 
         self.shell_code = padded_shell_code
+
 
 
 
