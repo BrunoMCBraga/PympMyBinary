@@ -1,7 +1,7 @@
 # PympMyBinary
 
 
-Python framework to customise binaries with shellcode.
+Python tool to infect binaries with shellcode.
 
 
 Win32 binary modifier and supporting classes assume the following model:
