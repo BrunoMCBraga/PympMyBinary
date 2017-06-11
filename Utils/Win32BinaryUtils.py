@@ -1,5 +1,6 @@
 from Utils.MultiByteHandler import MultiByteHandler
 from Utils.Win32BinaryOffsetsAndSizes import Win32BinaryOffsetsAndSizes
+from Utils import GenericConstants
 
 class Win32BinaryUtils:
 
@@ -94,3 +95,85 @@ class Win32BinaryUtils:
         rva_for_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         virtual_size_of_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
         return (rva_for_last_section, virtual_size_of_last_section)
+
+    #TODO: Consider searching across all executable sections if more than one (rare)
+    @staticmethod
+    def get_executable_region(binary_data, region_length):
+
+        memory_region_reference = None
+        header_offset = MultiByteHandler.get_dword_given_offset(binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
+
+        # We must get the offsets for the location where the shellcode will be inserted before inserting it and before changing the headers.
+        entrypoint_rva = MultiByteHandler.get_dword_given_offset(binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA)
+        raw_offset_of_header_of_section_containing_entrypoint = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary_data, header_offset, entrypoint_rva)[1]
+
+        entrypoint_raw_section_offset = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
+        entrypoint_raw_section_size = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
+
+        entrypoint_virtual_section_size = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
+
+        #Shellcode must be injected between the raw offset and raw offset + virtual size. The raw section will be cut.
+
+        if entrypoint_virtual_section_size <= entrypoint_raw_section_size:
+            memory_region_reference = entrypoint_raw_section_offset + entrypoint_virtual_section_size
+            for index in range(0, region_length):
+                region_byte = binary_data[memory_region_reference]
+                if region_byte != 0x0:
+                    return None
+                memory_region_reference-=1
+
+
+        # Shellcode must be injected between raw section offset and raw section offset + raw size
+        else:
+            memory_region_reference = entrypoint_raw_section_offset + entrypoint_raw_section_size
+            for index in range(0, region_length):
+                region_byte = binary_data[memory_region_reference]
+                if region_byte != 0x0:
+                    return None
+                memory_region_reference -= 1
+
+
+        return memory_region_reference
+
+
+    @staticmethod
+    def compute_checksum(binary_data, header_offset):
+        # Clear checksum
+        image_checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
+        # checksum = MultiByteHandler.get_dword_given_offset(self.binary, image_checksum_offset)
+        MultiByteHandler.set_dword_given_offset(binary_data, image_checksum_offset, 0x0)
+
+        checksum = 0x0
+        word_index = 0x0
+        has_odd_byte = True if len(binary_data) % Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT == 1 else False
+
+        while word_index < len(binary_data):
+            if word_index == image_checksum_offset:
+                word_index += Win32BinaryOffsetsAndSizes.CHECKSUM_SIZE
+            else:
+                checksum += MultiByteHandler.get_word_given_offset(binary_data, word_index)
+                checksum & GenericConstants.DWORD_MASK
+                # checksum += (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT)
+                word_index += Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT
+
+        if has_odd_byte:
+            checksum += binary_data[-1]
+
+        checksum = (
+                   checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT * GenericConstants.BITS_PER_BYTE) + (
+                   checksum & 0xFFFF)
+        checksum += (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT * GenericConstants.BITS_PER_BYTE)
+        checksum = (checksum & 0xFFFF)
+        checksum += len(binary_data)
+
+    @staticmethod
+    def has_relocation_table(binary_data):
+
+        header_offset = MultiByteHandler.get_dword_given_offset(binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
+
+        offset_to_base_relocation_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
+        base_relocation_table_rva = MultiByteHandler.get_dword_given_offset(binary_data, offset_to_base_relocation_table_rva_within_header)
+
+        return True if base_relocation_table_rva != 0x0 else False
+
+

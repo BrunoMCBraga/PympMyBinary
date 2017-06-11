@@ -1,12 +1,7 @@
 import os
 import importlib
 import sys
-import pkgutil
-
-from BinaryModifiers.Win32SectionAppender import Win32SectionAppender
-import ShellCodeGenerators
-
-from ShellCodeGenerators import GarbageGenerator
+from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
 
 
 def _print_usage():
@@ -18,8 +13,6 @@ def _print_usage():
 
 if __name__=='__main__':
 
-
-    binary = None
 
     clear_command = 'cls' if os.name == 'nt' else 'clear'
     os.system(clear_command)
@@ -73,12 +66,9 @@ if __name__=='__main__':
         print("Invalid source path.")
         sys.exit(1)
 
-    binary_modifier = Win32SectionAppender()
-    binary_modifier.set_binary(binary_data)
-    binary_modifier.set_shell_code_generator(shellcode_generator_instance)
-    binary_modifier.modify_binary()
 
-    infected_binary = binary_modifier.get_result()
+
+    binary_modifier = Win32BinaryModifier(binary_data, shellcode_generator_instance).modify_binary()
 
     try:
         os.remove(output_binary_path)
