@@ -9,6 +9,8 @@ class Win32BinaryUtils:
         number_of_sections_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS
         number_of_sections = MultiByteHandler.get_word_given_offset(binary, number_of_sections_offset)
         current_header_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS
+        last_section_index = 0
+        last_rva = 0
         for section_index in range(0, number_of_sections):
 
             virtual_section_size_offset = current_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
@@ -18,10 +20,15 @@ class Win32BinaryUtils:
             virtual_section_rva = MultiByteHandler.get_dword_given_offset(binary, virtual_section_rva_offset)
 
             virtual_end_of_section_rva = virtual_section_rva + virtual_section_size - 1
+
             if (rva >= virtual_section_rva) and (rva < virtual_end_of_section_rva):
                 return (section_index,current_header_offset)
 
             current_header_offset += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
+            last_section_index = section_index
+            last_rva = virtual_end_of_section_rva
+
+        return (None, None)
 
     @staticmethod
     def convert_rva_to_raw(binary, header_offset, rva):
@@ -49,8 +56,11 @@ class Win32BinaryUtils:
 
 
         #For given RVA
-        section_header_index_and_offset_for_section_containing_given_rva = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary, header_offset, rva)
-        offset_of_header_of_section_containing_given_rva = section_header_index_and_offset_for_section_containing_given_rva[1]
+        offset_of_header_of_section_containing_given_rva = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary, header_offset, rva)[1]
+
+        #If it is None, it means the RVA is beyond the last section
+        if offset_of_header_of_section_containing_given_rva == None:
+            return True
 
         virtual_section_rva_offset_for_section_containing_given_rva = offset_of_header_of_section_containing_given_rva + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
         virtual_section_rva_for_section_containing_given_rva = MultiByteHandler.get_dword_given_offset(binary, virtual_section_rva_offset_for_section_containing_given_rva)
@@ -82,6 +92,5 @@ class Win32BinaryUtils:
         beginning_of_section_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS
         beginning_of_section_header += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER * (number_of_sections-1)
         rva_for_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
-        vitual_size_of_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
-
-        return (rva_for_last_section, vitual_size_of_last_section)
+        virtual_size_of_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
+        return (rva_for_last_section, virtual_size_of_last_section)

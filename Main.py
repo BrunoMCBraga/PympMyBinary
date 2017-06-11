@@ -1,20 +1,16 @@
 import os
 import importlib
+import sys
+import pkgutil
 
-from ShellCodeGenerators.GarbageGenerator import *
-from ShellCodeGenerators.GarbageGeneratorXL import GarbageGeneratorXL
-from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
+from BinaryModifiers.Win32SectionAppender import Win32SectionAppender
+import ShellCodeGenerators
 
+from ShellCodeGenerators import GarbageGenerator
 
-
-BINARIES_PATH='./Binaries/'
-CLEAN_EXE= 'TestBinary.exe'
-INFECTED_EXE = 'PympedBinary.exe'
-CLEAN_DLL = 'TestBinary.dll'
-INFECTED_DLL = 'PympedBinary.dll'
 
 def _print_usage():
-    print("PympMyBinary -i input binary path -o output binary path -s shellcode module name")
+    print("PympMyBinary -i input binary path -o output binary path -s shellcode generator name")
 
 
 
@@ -22,39 +18,54 @@ def _print_usage():
 
 if __name__=='__main__':
 
+
     binary = None
 
     clear_command = 'cls' if os.name == 'nt' else 'clear'
     os.system(clear_command)
     _print_usage()
-    arguments = input().split(' ')
 
     input_binary_path = None
     output_binary_path = None
-    shellcode_module_name = None
+    shellcode_generator_name = None
 
-    if len(arguments) != 6:
+
+    if len(sys.argv) != 7:
         print("Invalid number of arguments.")
         sys.exit(1)
     else:
-        input_binary_path = arguments[input_binary_arguments.index('-i') + 1]
-        output_binary_path = arguments[arguments.index('-o') + 1]
-        shellcode_module_name = arguments[arguments.index('-s') + 1]
-        if None in [input_binary_path, output_binary_path, shellcode_module_name]:
+        input_binary_path = sys.argv[sys.argv.index('-i') + 1]
+        output_binary_path = sys.argv[sys.argv.index('-o') + 1]
+        shellcode_generator_name = sys.argv[sys.argv.index('-s') + 1]
+        if None in [input_binary_path, output_binary_path, shellcode_generator_name]:
             print("One or more arguments are null.")
             sys.exit(1)
 
     binary_data = None
-    shellcode_generator = None
+    shellcode_generator_instance = None
 
     if os.path.isfile(input_binary_path):
 
-        with open(BINARIES_PATH + CLEAN_DLL, "rb") as f:
-            binary = bytearray(f.read())
+        with open(input_binary_path, "rb") as f:
+            binary_data = bytearray(f.read())
 
-        if os.path.isdir(os.path.abspath(output_binary_path)):
-            shellcode_generator = getattr(importlib.import_module(shellcode_module_name, "ShellCodeGenerators"), shellcode_module_name)
-            ##Error check?
+        if binary_data == None:
+            print("An error occurred while reading the original binary.")
+            sys.exit(1)
+
+        if os.path.isdir(os.path.dirname(output_binary_path)):
+            module = None
+            try:
+                module = importlib.import_module("ShellCodeGenerators." + shellcode_generator_name, "ShellCodeGenerators")
+            except Exception as e:
+                print("Unable to find ShellCodeGenerator:" + str(e))
+                sys.exit(1)
+
+            shellcode_generator_class = getattr(module, shellcode_generator_name)
+            if shellcode_generator_class == None:
+                print("Error obtaining class for provided Shellcode generator name. Potential error with the provided name.")
+                sys.exit(1)
+            shellcode_generator_instance =  shellcode_generator_class()
         else:
             print("Invalid destination directory.")
             sys.exit(1)
@@ -62,9 +73,9 @@ if __name__=='__main__':
         print("Invalid source path.")
         sys.exit(1)
 
-    binary_modifier = Win32BinaryModifier()
+    binary_modifier = Win32SectionAppender()
     binary_modifier.set_binary(binary_data)
-    binary_modifier.set_shell_code_generator(shellcode_generator)
+    binary_modifier.set_shell_code_generator(shellcode_generator_instance)
     binary_modifier.modify_binary()
 
     infected_binary = binary_modifier.get_result()
