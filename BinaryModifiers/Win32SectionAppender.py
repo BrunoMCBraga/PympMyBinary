@@ -120,7 +120,7 @@ class Win32SectionAppender:
         offset_to_resource_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA
         resource_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_resource_table_rva_within_header)
 
-        if resource_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, resource_table_rva):
+        if resource_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, resource_table_rva):
             return
 
         resource_table_raw_offset = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, resource_table_rva)
@@ -165,7 +165,7 @@ class Win32SectionAppender:
         offset_to_import_table_rva = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_TABLE_RVA
         import_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_import_table_rva)
 
-        if import_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, import_table_rva):
+        if import_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, import_table_rva):
             return
         print("Requires change")
         import_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, import_table_rva)
@@ -219,7 +219,7 @@ class Win32SectionAppender:
         offset_to_certificate_table_rva = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
         certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_certificate_table_rva)
 
-        if certificate_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, certificate_table_rva):
+        if certificate_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, certificate_table_rva):
             return
 
         # Adjusting RVA on Data Directories header.
@@ -231,7 +231,7 @@ class Win32SectionAppender:
         offset_to_base_relocation_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
         base_relocation_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_base_relocation_table_rva_within_header)
 
-        if base_relocation_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, base_relocation_table_rva):
+        if base_relocation_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, base_relocation_table_rva):
             return
 
         offset_to_base_relocation_table_size = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_SIZE
@@ -243,7 +243,7 @@ class Win32SectionAppender:
         while current_base_relocation_table_raw < base_relocation_table_raw + base_relocation_table_size:
             rva_of_block = MultiByteHandler.get_dword_given_offset(self.binary_data, current_base_relocation_table_raw)
             size_of_block = MultiByteHandler.get_dword_given_offset(self.binary_data, current_base_relocation_table_raw + 0x4)
-            if not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, rva_of_block):
+            if not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, rva_of_block):
                 current_base_relocation_table_raw += size_of_block
                 continue
 
@@ -266,7 +266,7 @@ class Win32SectionAppender:
         offset_to_tls_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_TLS_TABLE_RVA
         tls_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header)
 
-        if tls_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, tls_table_rva):
+        if tls_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, tls_table_rva):
             return
 
         tls_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, tls_table_rva)
@@ -294,7 +294,7 @@ class Win32SectionAppender:
         offset_to_exception_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_EXCEPTION_TABLE_RVA
         exception_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_exception_table_rva_within_header)
 
-        if exception_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, exception_table_rva):
+        if exception_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, exception_table_rva):
             return
         else:
             raise NotImplementedError
@@ -306,7 +306,7 @@ class Win32SectionAppender:
         offset_to_debug_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DEBUG_RVA
         debug_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_debug_rva_within_header)
 
-        if debug_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, debug_rva):
+        if debug_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, debug_rva):
             return
 
 
@@ -328,7 +328,7 @@ class Win32SectionAppender:
         offset_to_architecture_data_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ARCHITECTURE_DATA_RVA
         architecture_data_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_architecture_data_rva_within_header)
 
-        if architecture_data_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, architecture_data_rva):
+        if architecture_data_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, architecture_data_rva):
             return
         else:
             raise NotImplementedError
@@ -341,7 +341,7 @@ class Win32SectionAppender:
         offset_to_global_ptr_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_GLOBAL_PTR_RVA
         global_ptr_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_global_ptr_rva_within_header)
 
-        if global_ptr_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, global_ptr_rva):
+        if global_ptr_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, global_ptr_rva):
             return
         else:
             raise NotImplementedError
@@ -353,7 +353,7 @@ class Win32SectionAppender:
         offset_to_load_config_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_LOAD_CONFIG_TABLE_RVA
         load_config_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_load_config_table_rva_within_header)
 
-        if load_config_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, load_config_table_rva):
+        if load_config_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, load_config_table_rva):
             return
 
         load_config_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, load_config_table_rva)
@@ -382,7 +382,7 @@ class Win32SectionAppender:
         offset_to_bound_import_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BOUND_IMPORT_RVA
         bound_import_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_bound_import_rva_within_header)
 
-        if bound_import_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, bound_import_rva):
+        if bound_import_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, bound_import_rva):
             return
         else:
             raise NotImplementedError
@@ -398,7 +398,7 @@ class Win32SectionAppender:
         offset_to_import_address_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_ADDRESS_TABLE_RVA
         import_address_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_import_address_table_rva_within_header)
 
-        if import_address_table_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, import_address_table_rva):
+        if import_address_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, import_address_table_rva):
             return
 
         # Adjusting RVA on Data Directories header.
@@ -408,7 +408,7 @@ class Win32SectionAppender:
         offset_to_delay_import_descriptor_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DELAY_IMPORT_DESCRIPTOR_RVA
         delay_import_descriptor_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_delay_import_descriptor_rva_within_header)
 
-        if delay_import_descriptor_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, delay_import_descriptor_rva):
+        if delay_import_descriptor_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, delay_import_descriptor_rva):
             return
         else:
             raise NotImplementedError
@@ -420,7 +420,7 @@ class Win32SectionAppender:
         offset_to_clr_runtime_header_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DELAY_IMPORT_DESCRIPTOR_RVA
         clr_runtime_header_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_clr_runtime_header_rva_within_header)
 
-        if clr_runtime_header_rva == 0x0 or not Win32BinaryUtils.rva_requires_change(self.binary_data, header_offset, clr_runtime_header_rva):
+        if clr_runtime_header_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, clr_runtime_header_rva):
             return
         else:
             raise NotImplementedError

@@ -43,8 +43,9 @@ class Win32BinaryUtils:
 
         return rva - virtual_section_rva + raw_section_offset
 
+
     @staticmethod
-    def rva_requires_change(binary, header_offset, rva):
+    def rva_is_after_entrypoint_and_requires_change(binary, header_offset, rva):
 
         #For entrypoint
         entrypoint_rva_offset_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
