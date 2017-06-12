@@ -68,7 +68,7 @@ if __name__=='__main__':
 
 
 
-    binary_modifier = Win32BinaryModifier(binary_data, shellcode_generator_instance).modify_binary()
+    binary_data = Win32BinaryModifier(binary_data, shellcode_generator_instance).modify_binary()
 
     try:
         os.remove(output_binary_path)
@@ -76,7 +76,7 @@ if __name__=='__main__':
         pass
 
     with open(output_binary_path, "wb") as f:
-        f.write(infected_binary)
+        f.write(binary_data)
 
 
 

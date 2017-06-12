@@ -1,6 +1,6 @@
 from Utils.MultiByteHandler import MultiByteHandler
 from Utils.Win32BinaryOffsetsAndSizes import Win32BinaryOffsetsAndSizes
-from Utils import GenericConstants
+from Utils.GenericConstants import GenericConstants
 
 class Win32BinaryUtils:
 
@@ -177,3 +177,39 @@ class Win32BinaryUtils:
         return True if base_relocation_table_rva != 0x0 else False
 
 
+    @staticmethod
+    def get_raw_offset_for_last_section_header(binary_data, header_offset):
+        number_of_sections_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS
+        number_of_sections = MultiByteHandler.get_word_given_offset(binary_data, number_of_sections_offset)
+
+        # Jumping to last header
+        beginning_of_last_section_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS
+        beginning_of_last_section_header += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER * (number_of_sections - 1)
+        return beginning_of_last_section_header
+
+    @staticmethod
+    def get_raw_offset_and_size_for_last_section(binary_data, header_offset):
+        raw_offset_for_last_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(binary_data, header_offset)
+        raw_offset_for_last_section =  MultiByteHandler.get_word_given_offset(binary_data, raw_offset_for_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
+        raw_size_for_last_section = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_for_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
+        return (raw_offset_for_last_section, raw_size_for_last_section)
+
+    @staticmethod
+    def compute_padding_size_for_file_alignment(binary_data, header_offset, size_or_offset):
+
+        """
+        :param header_offset:
+        :param size_or_offset:
+        :return: Used to compute the number of bytes that must be added to the shellcode to align the raw section size to filealignment.
+        """
+
+        file_alignment = MultiByteHandler.get_dword_given_offset(binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_FILE_ALIGNMENT)
+        mod_result = size_or_offset % file_alignment
+
+        return (file_alignment - mod_result) if mod_result != 0x0 else 0x0
+
+    @staticmethod
+    def compute_padding_size_for_section_alignment(binary_data, header_offset, size_or_rva):
+        section_alignment = MultiByteHandler.get_dword_given_offset(binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_ALIGNMENT)
+        mod_result = size_or_rva % section_alignment
+        return (section_alignment - mod_result) if mod_result != 0x0 else 0x0

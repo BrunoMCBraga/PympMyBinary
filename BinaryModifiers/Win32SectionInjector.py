@@ -18,6 +18,7 @@ class Win32SectionInjector:
         self._inject_shell()
         # TODO: Enable Checksum
         self._update_checksum(self.binary_data, header_offset)
+        return self.binary_data
 
     def __init__(self, binary_data, shell_code_generator, injection_location):
 

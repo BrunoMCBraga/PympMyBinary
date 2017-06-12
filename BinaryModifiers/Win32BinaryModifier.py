@@ -24,15 +24,12 @@ class Win32BinaryModifier:
         shell_code = self.shell_code_generator.get_shell_code()
         binary_segment = Win32BinaryUtils.get_executable_region(self.binary_data, len(shell_code))
         if binary_segment != None:
-            Win32SectionInjector(self.binary_data, self.shell_code_generator, binary_segment).modify_binary()
-            return self.binary_data
+            return Win32SectionInjector(self.binary_data, self.shell_code_generator, binary_segment).modify_binary()
 
         if Win32BinaryUtils.has_relocation_table(self.binary_data):
-            Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()
-            return self.binary_data
+            return Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()
 
-        Win32SectionCreator(self.binary_data, self.shell_code_generator).modify_binary()
-        return self.binary_data
+        return Win32SectionCreator(self.binary_data, self.shell_code_generator).modify_binary()
 
 
 
