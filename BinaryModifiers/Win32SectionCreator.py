@@ -494,7 +494,9 @@ class Win32SectionCreator():
         # SizeOfImage
         size_of_image_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_IMAGE
         potentially_unaligned_size_of_image = new_section_rva + new_section_virtual_size
+        print(hex(potentially_unaligned_size_of_image))
         aligned_size_of_image = potentially_unaligned_size_of_image + Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, potentially_unaligned_size_of_image)
+        print(hex(aligned_size_of_image))
         MultiByteHandler.set_dword_given_offset(self.binary_data, size_of_image_offset, aligned_size_of_image)
 
         # SifeOfHeaders
@@ -546,7 +548,7 @@ class Win32SectionCreator():
         new_initialized_header = self._get_new_header(0x200,new_section_rva, 0, 0)
         new_initialized_header.extend([0 for x in range(0,self.header_padding)])
         self._inject_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
-        self._adjust_windows_specific_headers(header_offset, new_section_rva, 0)
+        self._adjust_windows_specific_headers(header_offset, new_section_rva, 0x200)
         Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
 
