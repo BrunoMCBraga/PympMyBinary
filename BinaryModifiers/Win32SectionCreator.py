@@ -48,10 +48,10 @@ class Win32SectionCreator():
         MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, virtual_address)
         new_section_header_index += 4
 
-        #MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, size_of_raw_data)
+        MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, size_of_raw_data)
         new_section_header_index += 4
 
-        #MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, pointer_to_raw_data)
+        MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, pointer_to_raw_data)
         new_section_header_index += 4
 
         # TODO: Process properly
@@ -69,7 +69,6 @@ class Win32SectionCreator():
         new_section_header_index += 2
         characteristics = (0x00000020 | 0x20000000 | 0x40000000)
         MultiByteHandler.set_dword_given_offset(new_section_header, new_section_header_index, characteristics)
-
         return new_section_header
 
 
@@ -228,14 +227,14 @@ class Win32SectionCreator():
         MultiByteHandler.set_dword_given_offset(self.binary, offset_to_exception_table_rva_within_header, exception_table_rva + self.rva_delta)
 
     def _adjust_certificate_table(self, header_offset):
-        certificate_table_raw_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RAW)
+        certificate_table_raw_offset_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RAW
+        certificate_table_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, certificate_table_raw_offset_offset)
 
-        if certificate_table_raw_offset == 0x0:
+        if certificate_table_offset == 0x0:
             return
 
         # new RAW = Old raw + new header + len(padded_shall_code)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, certificate_table_raw_offset, certificate_table_raw_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER) #TODO: add shellcode
-
+        MultiByteHandler.set_dword_given_offset(self.binary_data, certificate_table_raw_offset_offset, certificate_table_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding) #TODO: add shellcode
 
     def _adjust_base_relocation_table(self, header_offset):
         offset_to_base_relocation_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA
@@ -455,13 +454,19 @@ class Win32SectionCreator():
 
             raw_section_offset_offset = current_section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER
             raw_section_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, raw_section_offset_offset)
-            raw_section_offset = (raw_section_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER) if raw_section_offset != 0 else 0
+            raw_section_offset = (raw_section_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding) if raw_section_offset != 0 else 0
             MultiByteHandler.set_dword_given_offset(self.binary_data, raw_section_offset_offset, raw_section_offset)
 
             current_section_header_offset += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
 
 
-    def _adjust_standard_coff_fields_and_coff_header(self, header_offset):
+    def _adjust_standard_coff_fields_and_coff_header(self, header_offset, size_of_new_section):
+
+        # Set size of code
+        size_of_code_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_CODE
+        current_size_of_code = MultiByteHandler.get_dword_given_offset(self.binary_data, size_of_code_offset)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, size_of_code_offset, current_size_of_code + size_of_new_section)
+
         # Adjust number of sections
         number_of_sections_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS
         number_of_sections = MultiByteHandler.get_word_given_offset(self.binary_data, number_of_sections_offset)
@@ -494,26 +499,26 @@ class Win32SectionCreator():
 
         # SifeOfHeaders
         size_of_headers_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_HEADERS
-        size_of_headers = MultiByteHandler.get_dword_given_offset(self.binary_data, size_of_headers_offset)
-        potentially_unpadded_size_of_headers = size_of_headers + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
-        padding = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, potentially_unpadded_size_of_headers)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, size_of_headers_offset, potentially_unpadded_size_of_headers + padding)
+        current_size_of_headers = MultiByteHandler.get_dword_given_offset(self.binary_data, size_of_headers_offset)
+        updated_size_of_headers = current_size_of_headers + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
+        padding = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, updated_size_of_headers)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, size_of_headers_offset, updated_size_of_headers + padding)
+
 
     # There is a delta if the new header causes the virtual size to cross the RVA for text section.from
     #1.Compute size of stuff above section headers = header_offset + size of COFF header + size of Optional Header
     def _set_rva_delta(self, header_offset):
-        size_of_optional_header = MultiByteHandler.get_word_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_OPTIONAL_HEADER)
-        size_of_coff_header = Win32BinaryOffsetsAndSizes.SIZE_OF_COFF_HEADER
-        number_of_sections_headers = MultiByteHandler.get_word_given_offset(self.binary_data, header_offset+ Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS) + 1
-        size_of_all_headers = header_offset + size_of_coff_header + size_of_optional_header + number_of_sections_headers*Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
-        rva_for_first_section = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
 
-        if size_of_all_headers < rva_for_first_section:
-            self.rva_delta = 0
-            return
+        #The header is smaller than this but this is adjusted and therefore padded to file alignment. The next section starts right after
+        current_size_of_headers = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_HEADERS)
 
-        rva_for_first_section = Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, rva_for_first_section)
-        self.rva_delta = rva_for_first_section
+        unpadded_size_of_new_header = current_size_of_headers + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
+        padding_for_new_header = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, unpadded_size_of_new_header)
+        self.header_padding = padding_for_new_header
+
+        #I have to check if the RAW size of the header crosses the RVA for the text section. For now, i can ignore. However i need to pad the header.
+
+
         return
 
 
@@ -533,13 +538,15 @@ class Win32SectionCreator():
         potentially_unaligned_rva = last_section_rva + last_section_virtual_size
         new_section_rva = potentially_unaligned_rva + Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, potentially_unaligned_rva)
 
-        self._file_align_shell_code(header_offset)
+        #self._file_align_shell_code(header_offset)
         self._set_rva_delta(header_offset)
         self._adjust_data_directories(header_offset) #When testing just with the new header, adjust certificate table to take into account the shellcode..
         self._adjust_section_headers(header_offset) #Maybe call this one after incrementing the number of sections??
-        self._adjust_standard_coff_fields_and_coff_header(header_offset)
-        self._inject_data_at_offset(self._get_new_header(0x200,new_section_rva, 0, 0), Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
-        self._adjust_windows_specific_headers(header_offset, new_section_rva, 0x200)
+        self._adjust_standard_coff_fields_and_coff_header(header_offset, 0x200)#<-Size of code
+        new_initialized_header = self._get_new_header(0x200,new_section_rva, 0, 0)
+        new_initialized_header.extend([0 for x in range(0,self.header_padding)])
+        self._inject_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
+        self._adjust_windows_specific_headers(header_offset, new_section_rva, 0)
         Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
 
@@ -553,4 +560,5 @@ class Win32SectionCreator():
         self.shell_code_generator = shell_code_generator
         self.shell_code = None
         self.rva_delta = 0
+        self.header_padding = 0
         # extended section must have their RVAs adjusted. This variable contains the adjustment.
