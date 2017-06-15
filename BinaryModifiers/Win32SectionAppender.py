@@ -167,7 +167,6 @@ class Win32SectionAppender:
 
         if import_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, import_table_rva):
             return
-        print("Requires change")
         import_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, import_table_rva)
         current_import_directory_table_entry = import_table_raw
 
@@ -216,7 +215,7 @@ class Win32SectionAppender:
     #The certificate table has a raw offset not RVA. The delta is the length of the shellcode
     def _adjust_certificate_table(self, header_offset):
 
-        offset_to_certificate_table_rva = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RVA
+        offset_to_certificate_table_rva = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CERTIFICATE_TABLE_RAW
         certificate_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_certificate_table_rva)
 
         if certificate_table_rva == 0x0 or not Win32BinaryUtils.rva_is_after_entrypoint_and_requires_change(self.binary_data, header_offset, certificate_table_rva):

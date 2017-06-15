@@ -4,24 +4,6 @@ from Utils.MultiByteHandler import  MultiByteHandler
 
 class Win32SectionCreator():
 
-    '''
-    TODO:
-    1.Create new section header
-        1.1. Split binary at the end of the last section header (need last section header end)
-        1.2. Add array of bytes the size of the header (allocate array with a size that must be the shellcode + FileAlignment)
-        1.3. Write the section headers as needed
-    2.Create section:
-        1.1. Split binary at the end of the last section
-        1.2. Append shellcode (once it is adjusted)
-    3.Adjust number of section
-    4. Adjust size of image
-    5. Adjust checksum
-
-
-    .Align image and section
-
-
-    '''
 
     def _inject_data_at_offset(self, data, offset):
         first_half = self.binary_data[0:offset]
@@ -494,9 +476,7 @@ class Win32SectionCreator():
         # SizeOfImage
         size_of_image_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_IMAGE
         potentially_unaligned_size_of_image = new_section_rva + new_section_virtual_size
-        print(hex(potentially_unaligned_size_of_image))
         aligned_size_of_image = potentially_unaligned_size_of_image + Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, potentially_unaligned_size_of_image)
-        print(hex(aligned_size_of_image))
         MultiByteHandler.set_dword_given_offset(self.binary_data, size_of_image_offset, aligned_size_of_image)
 
         # SifeOfHeaders
@@ -535,19 +515,31 @@ class Win32SectionCreator():
 
         header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
         beginning_of_last_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset)
+
+        #Computing RVA for last section
         last_section_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         last_section_virtual_size = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
         potentially_unaligned_rva = last_section_rva + last_section_virtual_size
         new_section_rva = potentially_unaligned_rva + Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, potentially_unaligned_rva)
 
-        #self._file_align_shell_code(header_offset)
+        #Computing RAW for last section
+        last_section_raw_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
+        last_section_raw_size = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
+        new_section_raw_offset = last_section_raw_offset + last_section_raw_size
+
+        self._file_align_shell_code(header_offset)
         self._set_rva_delta(header_offset)
         self._adjust_data_directories(header_offset) #When testing just with the new header, adjust certificate table to take into account the shellcode..
         self._adjust_section_headers(header_offset) #Maybe call this one after incrementing the number of sections??
         self._adjust_standard_coff_fields_and_coff_header(header_offset, 0x200)#<-Size of code
-        new_initialized_header = self._get_new_header(0x200,new_section_rva, 0, 0)
+
+        #Injecting header
+        new_initialized_header = self._get_new_header(0x200,new_section_rva, 0x200, new_section_raw_offset)
         new_initialized_header.extend([0 for x in range(0,self.header_padding)])
         self._inject_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
+
+        #Injecting shellcode
+        self._inject_data_at_offset(self.shell_code, new_section_raw_offset)
         self._adjust_windows_specific_headers(header_offset, new_section_rva, 0x200)
         Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
