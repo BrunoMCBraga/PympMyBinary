@@ -10,8 +10,7 @@ class Win32BinaryUtils:
         number_of_sections_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_SECTIONS
         number_of_sections = MultiByteHandler.get_word_given_offset(binary, number_of_sections_offset)
         current_header_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS
-        last_section_index = 0
-        last_rva = 0
+
         for section_index in range(0, number_of_sections):
 
             virtual_section_size_offset = current_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER
@@ -20,19 +19,18 @@ class Win32BinaryUtils:
             virtual_section_rva_offset = current_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
             virtual_section_rva = MultiByteHandler.get_dword_given_offset(binary, virtual_section_rva_offset)
 
-            virtual_end_of_section_rva = virtual_section_rva + virtual_section_size - 1
-
+            virtual_end_of_section_rva = virtual_section_rva + virtual_section_size
             if (rva >= virtual_section_rva) and (rva < virtual_end_of_section_rva):
                 return (section_index,current_header_offset)
 
             current_header_offset += Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
-            last_section_index = section_index
-            last_rva = virtual_end_of_section_rva
+
 
         return (None, None)
 
     @staticmethod
     def convert_rva_to_raw(binary, header_offset, rva):
+
         section_header_offset = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary, header_offset, rva)[1]
 
         virtual_section_rva_offset = section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER
@@ -40,7 +38,6 @@ class Win32BinaryUtils:
 
         raw_section_offset_offset = section_header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER
         raw_section_offset = MultiByteHandler.get_dword_given_offset(binary, raw_section_offset_offset)
-
         return rva - virtual_section_rva + raw_section_offset
 
 
@@ -97,44 +94,32 @@ class Win32BinaryUtils:
         virtual_size_of_last_section = MultiByteHandler.get_dword_given_offset(binary, beginning_of_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
         return (rva_for_last_section, virtual_size_of_last_section)
 
+
+
     #TODO: Consider searching across all executable sections if more than one (rare)
     @staticmethod
-    def get_executable_region(binary_data, region_length):
-
-        memory_region_reference = None
-        header_offset = MultiByteHandler.get_dword_given_offset(binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
+    def get_executable_region_rva_and_raw_offset(binary_data, header_offset, region_length):
 
         # We must get the offsets for the location where the shellcode will be inserted before inserting it and before changing the headers.
         entrypoint_rva = MultiByteHandler.get_dword_given_offset(binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA)
         raw_offset_of_header_of_section_containing_entrypoint = Win32BinaryUtils.get_raw_offset_for_header_of_section_containing_given_rva(binary_data, header_offset, entrypoint_rva)[1]
 
-        entrypoint_raw_section_offset = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
-        entrypoint_raw_section_size = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
-
+        entrypoint_virtual_section_rva = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         entrypoint_virtual_section_size = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
 
-        #Shellcode must be injected between the raw offset and raw offset + virtual size. The raw section will be cut.
+        raw_offset_for_entrypoint_section = MultiByteHandler.get_dword_given_offset(binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
+        raw_end_of_virtual_section = Win32BinaryUtils.convert_rva_to_raw(binary_data, header_offset, entrypoint_virtual_section_rva + entrypoint_virtual_section_size - 1)
 
-        if entrypoint_virtual_section_size <= entrypoint_raw_section_size:
-            memory_region_reference = entrypoint_raw_section_offset + entrypoint_virtual_section_size
-            for index in range(0, region_length):
-                region_byte = binary_data[memory_region_reference]
-                if region_byte != 0x0:
-                    return None
-                memory_region_reference-=1
+        #It appears to be fetching the right bytes but the raw offset is not correct according to pe view.
+        for index in range(0, region_length):
+            #print(hex(raw_end_of_virtual_section))
+            region_byte = binary_data[raw_end_of_virtual_section]
+            #print(hex(region_byte))
+            if region_byte != 0x0:
+                return (None, None)
+            raw_end_of_virtual_section-=1
 
-
-        # Shellcode must be injected between raw section offset and raw section offset + raw size
-        else:
-            memory_region_reference = entrypoint_raw_section_offset + entrypoint_raw_section_size
-            for index in range(0, region_length):
-                region_byte = binary_data[memory_region_reference]
-                if region_byte != 0x0:
-                    return None
-                memory_region_reference -= 1
-
-
-        return memory_region_reference
+        return (entrypoint_virtual_section_rva + raw_end_of_virtual_section - raw_offset_for_entrypoint_section,raw_end_of_virtual_section)
 
 
     @staticmethod

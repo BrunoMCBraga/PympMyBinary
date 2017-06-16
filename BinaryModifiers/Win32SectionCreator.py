@@ -517,8 +517,6 @@ class Win32SectionCreator():
     def _overwrite_entrypoint_rva(self, header_offset):
         #Get current RVA for entrypoint
         offset_for_address_of_entrypoint_rva_on_the_header =  header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
-        entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header)
-
 
         #Get header offset for new header
         raw_offset_for_shell_code_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset)
@@ -565,10 +563,11 @@ class Win32SectionCreator():
         #Injecting shellcode
         self._inject_data_at_offset(self.shell_code, new_section_raw_offset)
         self._adjust_windows_specific_headers(header_offset, new_section_rva, len(self.shell_code))
-        Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
         #Redirect execution to shellcode
         self._overwrite_entrypoint_rva(header_offset)
+
+        Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
         return self.binary_data
 

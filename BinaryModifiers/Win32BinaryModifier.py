@@ -2,6 +2,8 @@ from BinaryModifiers.Win32SectionAppender import Win32SectionAppender
 from BinaryModifiers.Win32SectionCreator import Win32SectionCreator
 from BinaryModifiers.Win32SectionInjector import Win32SectionInjector
 from Utils.Win32BinaryUtils import Win32BinaryUtils
+from Utils.MultiByteHandler import MultiByteHandler
+from Utils.Win32BinaryOffsetsAndSizes import  Win32BinaryOffsetsAndSizes
 
 class Win32BinaryModifier:
     """
@@ -21,10 +23,14 @@ class Win32BinaryModifier:
         :param self:
         :return:
         """
-        shell_code = self.shell_code_generator.get_base_shell_code(0)
-        binary_segment = Win32BinaryUtils.get_executable_region(self.binary_data, len(shell_code))
-        if binary_segment != None:
-            return Win32SectionInjector(self.binary_data, self.shell_code_generator, binary_segment).modify_binary()
+        header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
+
+        # We get a dummy shellcode. The size should remain the same
+        shell_code = self.shell_code_generator.get_base_shell_code(0x0)
+        (rva_for_region, raw_offset_for_region) = Win32BinaryUtils.get_executable_region_rva_and_raw_offset(self.binary_data, header_offset, len(shell_code))
+        if rva_for_region != None and raw_offset_for_region != None:
+            print("Injector")
+            return Win32SectionInjector(self.binary_data, self.shell_code_generator, rva_for_region, raw_offset_for_region).modify_binary()
 
         if Win32BinaryUtils.has_relocation_table(self.binary_data):
             return Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()

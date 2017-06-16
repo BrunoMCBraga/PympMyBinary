@@ -12,7 +12,7 @@ class SimpleJmp:
         word_displacement = adjusted_displacement & 0xFFFFFFFF
         jump_instruction_bytes = [0xE9,
                                   word_displacement & 0xFF,
-                                  (word_displacement >> 1*GenericConstants.BITS_PER_BYTE) & 0xFF,
+                                  (word_displacement >> 1 * GenericConstants.BITS_PER_BYTE) & 0xFF,
                                   (word_displacement >> 2 * GenericConstants.BITS_PER_BYTE) & 0xFF,
                                   (word_displacement >> 3 * GenericConstants.BITS_PER_BYTE) & 0xFF]
         self.shell_code.extend(jump_instruction_bytes)
