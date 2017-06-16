@@ -67,12 +67,12 @@ class Win32BinaryUtils:
         if virtual_section_rva_for_section_containing_given_rva > entrypoint_virtual_section_rva:
             return True
 
-    #Import address table ends five sequences of 0x0 dwords
+
     @staticmethod
-    def is_end_of_import_directory_table(binary, offset):
+    def has_consecutive_zero_dwords(binary, offset, number_of_consecutive_dwords):
         dword_sum = 0x0
 
-        for dword_within_directory_table_entry in range(0, Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_WITHIN_EACH_DIRECTORY_TABLE_ENTRY):
+        for dword_within_directory_table_entry in range(0, number_of_consecutive_dwords):
             dword_sum += MultiByteHandler.get_dword_given_offset(binary, offset)
             offset += 0x4
 

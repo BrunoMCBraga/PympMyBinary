@@ -119,7 +119,7 @@ class Win32SectionCreator():
 
         while (True):
 
-            if Win32BinaryUtils.is_end_of_import_directory_table(self.binary_data, current_import_directory_table_entry):
+            if Win32BinaryUtils.has_consecutive_zero_dwords(self.binary_data, current_import_directory_table_entry):
                 break
             offset_to_import_name_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_NAME_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_name_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_import_name_table_rva)
@@ -256,21 +256,29 @@ class Win32SectionCreator():
         offset_to_debug_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DEBUG_RVA
         debug_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_debug_rva_within_header)
 
-        if debug_rva == 0x0 or self.rva_delta == 0:
+        if debug_rva == 0x0:
             return
 
         debug_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, debug_rva)
+        current_debug_raw = debug_raw
+        debug_size = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DEBUG_SIZE)
+        number_of_entries = debug_size / (Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_ON_DEBUG_ENTRY*4)
 
-        offset_to_address_of_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_RAW_DATA_WITHIN_DEBUG_DIRECTORY
-        address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory, address_of_raw_data + self.rva_delta)
+        for entry_index in range(0, number_of_entries):
 
-        offset_to_pointer_to_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_POINTER_TO_RAW_DATA_WITHIN_DEBUG_DIRECTORY
-        pointer_to_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_pointer_to_raw_data_within_debug_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_pointer_to_raw_data_within_debug_directory, pointer_to_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER)
+            offset_to_address_of_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_RAW_DATA_WITHIN_DEBUG_DIRECTORY
+            address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory, address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
 
-        # Adjusting RVA on Data Directories header.
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_debug_rva_within_header, debug_rva + self.rva_delta)
+            offset_to_pointer_to_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_POINTER_TO_RAW_DATA_WITHIN_DEBUG_DIRECTORY
+            pointer_to_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_pointer_to_raw_data_within_debug_directory)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_pointer_to_raw_data_within_debug_directory, pointer_to_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+
+            current_debug_raw += Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_ON_DEBUG_ENTRY*0x4
+
+        if self.rva_delta != 0:
+            # Adjusting RVA on Data Directories header.
+            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_debug_rva_within_header, debug_rva + self.rva_delta)
 
     def _adjust_architecture_data(self, header_offset):
         offset_to_architecture_data_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ARCHITECTURE_DATA_RVA
@@ -381,13 +389,46 @@ class Win32SectionCreator():
         offset_to_delay_import_descriptor_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DELAY_IMPORT_DESCRIPTOR_RVA
         delay_import_descriptor_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_delay_import_descriptor_rva_within_header)
 
+
         if delay_import_descriptor_rva == 0x0 or self.rva_delta == 0:
             return
-        else:
-            raise NotImplementedError
 
-        # Adjusting RVA on Data Directories header.
-        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_delay_import_descriptor_rva_within_header, delay_import_descriptor_rva + self.rva_delta)
+        raw_offset_for_delay_import_descriptor = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, delay_import_descriptor_rva)
+        current_delay_import_offset = raw_offset_for_delay_import_descriptor
+
+        while(True):
+
+            if Win32BinaryUtils.has_consecutive_zero_dwords(self.binary_data, current_delay_import_offset, Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_ON_DELAY_IMPORT_ENTRY):
+                break
+
+            va_to_dll_name_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_DLL_NAME_OFFSET_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_DLL_NAME_OFFSET_WITHIN_DELAY_IMPORT_ENTRY, va_to_dll_name_offset + self.rva_delta)
+
+            va_to_hmodule_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_HMODULE_OFFSET_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_HMODULE_OFFSET_WITHIN_DELAY_IMPORT_ENTRY, va_to_hmodule_offset + self.rva_delta)
+
+            va_to_import_address_table = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_ADDRESS_TABLE_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_ADDRESS_TABLE_WITHIN_DELAY_IMPORT_ENTRY, va_to_import_address_table + self.rva_delta)
+
+            va_to_import_address_table = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_ADDRESS_TABLE_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_ADDRESS_TABLE_WITHIN_DELAY_IMPORT_ENTRY, va_to_import_address_table + self.rva_delta)
+
+            va_to_import_name_table = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_NAME_TABLE_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_IMPORT_NAME_TABLE_WITHIN_DELAY_IMPORT_ENTRY, va_to_import_name_table + self.rva_delta)
+
+            va_to_bound_iat = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_BOUND_IAT_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_BOUND_IAT_WITHIN_DELAY_IMPORT_ENTRY, va_to_bound_iat + self.rva_delta)
+
+            vat_to_unload_iat = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_UNLOAD_IAT_WITHIN_DELAY_IMPORT_ENTRY)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_UNLOAD_IAT_WITHIN_DELAY_IMPORT_ENTRY, vat_to_unload_iat + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+
+
+            current_delay_import_offset += Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_ON_DELAY_IMPORT_ENTRY*0x4
+
+
+        if self.rva_delta != 0:
+            # Adjusting RVA on Data Directories header.
+            MultiByteHandler.set_dword_given_offset(self.binary, offset_to_delay_import_descriptor_rva_within_header, delay_import_descriptor_rva + self.rva_delta)
 
     def _adjust_clr_runtime_header(self, header_offset):
         offset_to_clr_runtime_header_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DELAY_IMPORT_DESCRIPTOR_RVA

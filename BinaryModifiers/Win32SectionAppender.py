@@ -172,7 +172,7 @@ class Win32SectionAppender:
 
         while(True):
 
-            if Win32BinaryUtils.is_end_of_import_directory_table(self.binary_data, current_import_directory_table_entry):
+            if Win32BinaryUtils.has_consecutive_zero_dwords(self.binary_data, current_import_directory_table_entry, Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_WITHIN_EACH_DIRECTORY_TABLE_ENTRY):
                 break
             offset_to_import_name_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_NAME_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_name_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_import_name_table_rva)

@@ -32,9 +32,9 @@ class Win32BinaryModifier:
         if rva_for_region != None and raw_offset_for_region != None:
             return Win32SectionInjector(self.binary_data, self.shell_code_generator, rva_for_region, raw_offset_for_region).modify_binary()
 
-        print("Injector failed. Testing Appender...")
-        if Win32BinaryUtils.has_relocation_table(self.binary_data):
-            return Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()
+        #print("Injector failed. Testing Appender...") disable this and test with chrome...
+        #if Win32BinaryUtils.has_relocation_table(self.binary_data):
+        #    return Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()
 
         print("Appender failed. Testing Section Creator...")
         return Win32SectionCreator(self.binary_data, self.shell_code_generator).modify_binary()
