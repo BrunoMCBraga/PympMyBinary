@@ -495,8 +495,9 @@ class Win32SectionAppender:
 
     def _update_checksum(self, header_offset):
 
+        checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
         checksum = Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, checksum, checksum)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, checksum_offset, checksum)
 
     '''
         RVAs for sections must be SectionAligned. I need to determine what is going to be the delta for the sections coming after
@@ -561,7 +562,7 @@ class Win32SectionAppender:
         self._adjust_windows_specific_headers(header_offset)
         self._inject_shell_code_at_offset(entrypoint_raw_section_offset + entrypoint_raw_section_size)
         #TODO: Enable Checksum
-        self._update_checksum(header_offset)
+        #self._update_checksum(header_offset)
         return self.binary_data
 
 

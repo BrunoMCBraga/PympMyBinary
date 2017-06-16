@@ -300,29 +300,30 @@ class Win32SectionCreator():
         offset_to_tls_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_TLS_TABLE_RVA
         tls_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header)
 
-        if tls_table_rva == 0x0 or self.rva_delta == 0:
+        if tls_table_rva == 0x0:
             return
 
         tls_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, tls_table_rva)
 
         offset_to_start_address_of_raw_data_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_START_ADDRESS_OF_RAW_DATA_WITHIN_TLS_DIRECTORY
         start_address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory, start_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory, start_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
 
         offset_to_end_address_of_raw_data_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_END_OF_ADDRESS_OF_RAW_DATA_WITHIN_TLS_DIRECTORY
         end_address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory, end_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory, end_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
 
         offset_to_address_of_index_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_INDEX_WITHIN_TLS_DIRECTORY
         address_of_index = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory, address_of_index + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory, address_of_index + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
 
         offset_to_address_of_callbacks_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_CALLBACKS_WITHIN_TLS_DIRECTORY
         address_of_callbacks = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory, address_of_callbacks + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory, address_of_callbacks + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
 
         # Adjusting RVA on Data Directories header.
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header, tls_table_rva + self.rva_delta)
+        if self.rva_delta != 0:
+            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header, tls_table_rva + self.rva_delta)
 
     def _adjust_load_config_table(self, header_offset):
         offset_to_load_config_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_LOAD_CONFIG_TABLE_RVA
@@ -526,6 +527,11 @@ class Win32SectionCreator():
         #Overwrite current RVA for entrypoint with the new one. Not sure if i should change BaseOfCode???
         MultiByteHandler.set_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header,rva_for_shell_code_section_header)
 
+    def _update_checksum(self, header_offset):
+        checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
+        checksum = Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, checksum_offset, checksum)
+
     def modify_binary(self):
 
         header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
@@ -567,7 +573,7 @@ class Win32SectionCreator():
         #Redirect execution to shellcode
         self._overwrite_entrypoint_rva(header_offset)
 
-        Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
+        ##self._update_checksum(header_offset)
 
         return self.binary_data
 

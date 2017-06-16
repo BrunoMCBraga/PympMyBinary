@@ -44,6 +44,7 @@ if __name__=='__main__':
 
         if binary_data == None:
             print("An error occurred while reading the original binary.")
+            _print_usage()
             sys.exit(1)
 
         if os.path.isdir(os.path.dirname(output_binary_path)):
@@ -52,18 +53,22 @@ if __name__=='__main__':
                 module = importlib.import_module("ShellCodeGenerators." + shellcode_generator_name, "ShellCodeGenerators")
             except Exception as e:
                 print("Unable to find ShellCodeGenerator:" + str(e))
+                _print_usage()
                 sys.exit(1)
 
             shellcode_generator_class = getattr(module, shellcode_generator_name)
             if shellcode_generator_class == None:
                 print("Error obtaining class for provided Shellcode generator name. Potential error with the provided name.")
+                _print_usage()
                 sys.exit(1)
             shellcode_generator_instance =  shellcode_generator_class()
         else:
             print("Invalid destination directory.")
+            _print_usage()
             sys.exit(1)
     else:
         print("Invalid source path.")
+        _print_usage()
         sys.exit(1)
 
 

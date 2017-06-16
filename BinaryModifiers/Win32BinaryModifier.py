@@ -25,16 +25,18 @@ class Win32BinaryModifier:
         """
         header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
 
+        print("Testing Injector....")
         # We get a dummy shellcode. The size should remain the same
         shell_code = self.shell_code_generator.get_base_shell_code(0x0)
         (rva_for_region, raw_offset_for_region) = Win32BinaryUtils.get_executable_region_rva_and_raw_offset(self.binary_data, header_offset, len(shell_code))
         if rva_for_region != None and raw_offset_for_region != None:
-            print("Injector")
             return Win32SectionInjector(self.binary_data, self.shell_code_generator, rva_for_region, raw_offset_for_region).modify_binary()
 
+        print("Injector failed. Testing Appender...")
         if Win32BinaryUtils.has_relocation_table(self.binary_data):
             return Win32SectionAppender(self.binary_data, self.shell_code_generator).modify_binary()
 
+        print("Appender failed. Testing Section Creator...")
         return Win32SectionCreator(self.binary_data, self.shell_code_generator).modify_binary()
 
 
