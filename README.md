@@ -13,7 +13,7 @@ So far, the infector is only able to infect Win32/64 binaries. Testing is ongoin
 
 ## What does not?
 * Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
-* Packed binaries (e.g. FireFox). UPX the binary before using this.
+* Packed binaries (e.g. FireFox). UPX the binary before using this. It is sill being tested.
 
 ## Usage
 ```bash
