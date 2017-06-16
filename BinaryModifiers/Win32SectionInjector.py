@@ -1,6 +1,5 @@
 from Utils import  MultiByteHandler
 from Utils import Win32BinaryOffsetsAndSizes
-from Utils import Win32BinaryUtils
 
 class Win32SectionInjector:
 
@@ -24,6 +23,6 @@ class Win32SectionInjector:
 
         self.binary_data = binary_data
         self.shell_code_generator = shell_code_generator
-        self.shell_code = shell_code_generator.get_shell_code()
+        self.shell_code = shell_code_generator.get_base_shell_code(0)
         self.injection_location = injection_location
         # extended section must have their RVAs adjusted. This variable contains the adjustment.

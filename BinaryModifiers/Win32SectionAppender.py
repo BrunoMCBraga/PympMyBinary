@@ -531,7 +531,7 @@ class Win32SectionAppender:
         :return: Updates public shellcode to take into account the FileAlignment specification, i.e., raw sections must have a size that is multiple of the FileAlignment
         """
 
-        default_shell_code = self.shell_code_generator.get_shell_code()
+        default_shell_code = self.shell_code_generator.get_base_shell_code()
         raw_offset_of_entrypoint_section =  MultiByteHandler.get_dword_given_offset(self.binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
         minimum_raw_offset_for_next_section = raw_offset_of_entrypoint_section + entrypoint_raw_section_size + len(default_shell_code)
         padding_size = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, minimum_raw_offset_for_next_section)

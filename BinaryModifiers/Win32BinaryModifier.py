@@ -21,7 +21,7 @@ class Win32BinaryModifier:
         :param self:
         :return:
         """
-        shell_code = self.shell_code_generator.get_shell_code()
+        shell_code = self.shell_code_generator.get_base_shell_code(0)
         binary_segment = Win32BinaryUtils.get_executable_region(self.binary_data, len(shell_code))
         if binary_segment != None:
             return Win32SectionInjector(self.binary_data, self.shell_code_generator, binary_segment).modify_binary()

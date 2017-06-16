@@ -1,6 +1,5 @@
 from Utils.GenericConstants import GenericConstants
 
-
 class MultiByteHandler:
 
     @staticmethod

