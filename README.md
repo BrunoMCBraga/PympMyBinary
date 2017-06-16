@@ -17,7 +17,7 @@ Integrity checks implemented by software installers like NSIS cause the executio
 
 ## Usage
 ```bash
-                          PympMyBinary -i input binary path -o output binary path -s shellcode generator name
+PympMyBinary -i input binary path -o output binary path -s shellcode generator name
 ```
 Where shellcode generator name is one of the filenames on ShellCodeGenerators package.
 
