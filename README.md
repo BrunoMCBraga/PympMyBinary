@@ -12,8 +12,8 @@ Python tool to infect binaries with shellcode. The tool infects in one of three 
 So far, the infector is only able to infect Win32/64 binaries. Testing is ongoing since some sections (e.g. debug table, certificate table) are rare.
 
 ## What does not?
-Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
-
+* Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
+* Packed binaries (e.g. FireFox). UPX the binary before using this.
 
 ## Usage
 ```bash
