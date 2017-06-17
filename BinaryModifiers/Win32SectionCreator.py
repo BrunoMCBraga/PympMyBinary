@@ -119,7 +119,7 @@ class Win32SectionCreator():
 
         while (True):
 
-            if Win32BinaryUtils.has_consecutive_zero_dwords(self.binary_data, current_import_directory_table_entry):
+            if Win32BinaryUtils.has_consecutive_zero_dwords(self.binary_data, current_import_directory_table_entry, Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_WITHIN_EACH_DIRECTORY_TABLE_ENTRY):
                 break
             offset_to_import_name_table_rva = current_import_directory_table_entry + Win32BinaryOffsetsAndSizes.OFFSET_TO_IMPORT_NAME_TABLE_RVA_WITHIN_IMPORT_DIRECTORY_TABLE
             import_name_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_import_name_table_rva)
@@ -266,9 +266,10 @@ class Win32SectionCreator():
 
         for entry_index in range(0, number_of_entries):
 
-            offset_to_address_of_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_RAW_DATA_WITHIN_DEBUG_DIRECTORY
-            address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory)
-            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory, address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+            if self.rva_delta != 0:
+                offset_to_address_of_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_RAW_DATA_WITHIN_DEBUG_DIRECTORY
+                address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory)
+                MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_raw_data_within_debug_directory, address_of_raw_data + self.rva_delta)
 
             offset_to_pointer_to_raw_data_within_debug_directory = debug_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_POINTER_TO_RAW_DATA_WITHIN_DEBUG_DIRECTORY
             pointer_to_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_pointer_to_raw_data_within_debug_directory)
@@ -420,7 +421,7 @@ class Win32SectionCreator():
             MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_BOUND_IAT_WITHIN_DELAY_IMPORT_ENTRY, va_to_bound_iat + self.rva_delta)
 
             vat_to_unload_iat = MultiByteHandler.get_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_UNLOAD_IAT_WITHIN_DELAY_IMPORT_ENTRY)
-            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_UNLOAD_IAT_WITHIN_DELAY_IMPORT_ENTRY, vat_to_unload_iat + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, current_delay_import_offset + Win32BinaryOffsetsAndSizes.VA_TO_UNLOAD_IAT_WITHIN_DELAY_IMPORT_ENTRY, vat_to_unload_iat + self.rva_delta)
 
 
             current_delay_import_offset += Win32BinaryOffsetsAndSizes.NUMBER_OF_DWORDS_ON_DELAY_IMPORT_ENTRY*0x4
@@ -428,19 +429,9 @@ class Win32SectionCreator():
 
         if self.rva_delta != 0:
             # Adjusting RVA on Data Directories header.
-            MultiByteHandler.set_dword_given_offset(self.binary, offset_to_delay_import_descriptor_rva_within_header, delay_import_descriptor_rva + self.rva_delta)
+            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_delay_import_descriptor_rva_within_header, delay_import_descriptor_rva + self.rva_delta)
 
-    def _adjust_clr_runtime_header(self, header_offset):
-        offset_to_clr_runtime_header_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_DELAY_IMPORT_DESCRIPTOR_RVA
-        clr_runtime_header_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_clr_runtime_header_rva_within_header)
 
-        if clr_runtime_header_rva == 0x0 or self.rva_delta == 0:
-            return
-        else:
-            raise NotImplementedError
-
-        # Adjusting RVA on Data Directories header.
-        MultiByteHandler.set_dword_given_offset(self.binary, offset_to_clr_runtime_header_rva_within_header, clr_runtime_header_rva + self.rva_delta)
 
     #All functions should compare to new_sectioN_rva
     def _adjust_data_directories(self, header_offset):
@@ -458,7 +449,6 @@ class Win32SectionCreator():
         self._adjust_bound_import(header_offset)
         self._adjust_import_address_table(header_offset)
         self._adjust_delay_import_descriptor(header_offset)
-        self._adjust_clr_runtime_header(header_offset)
 
 
     def _adjust_section_headers(self, header_offset):
@@ -537,13 +527,17 @@ class Win32SectionCreator():
 
         #The header is smaller than this but this is adjusted and therefore padded to file alignment. The next section starts right after
         current_size_of_headers = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_SIZE_OF_HEADERS)
-
-        unpadded_size_of_new_header = current_size_of_headers + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
-        padding_for_new_header = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, unpadded_size_of_new_header)
+        new_size_of_headers_unpadded = current_size_of_headers + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER
+        padding_for_new_header = Win32BinaryUtils.compute_padding_size_for_file_alignment(self.binary_data, header_offset, new_size_of_headers_unpadded)
         self.header_padding = padding_for_new_header
+        new_size_of_headers = new_size_of_headers_unpadded + padding_for_new_header
 
         #I have to check if the RAW size of the header crosses the RVA for the text section. For now, i can ignore. However i need to pad the header.
-
+        rva_for_first_section = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
+        if new_size_of_headers > rva_for_first_section:
+            print("Added section crossing RVA for first section.")
+            virtual_rva_delta = Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, new_size_of_headers)
+            self.rva_delta =  new_size_of_headers + virtual_rva_delta - rva_for_first_section
 
         return
 
@@ -563,9 +557,11 @@ class Win32SectionCreator():
         raw_offset_for_shell_code_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset)
         rva_for_shell_code_section_header = MultiByteHandler.get_dword_given_offset(self.binary_data, raw_offset_for_shell_code_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
 
-
         #Overwrite current RVA for entrypoint with the new one. Not sure if i should change BaseOfCode???
         MultiByteHandler.set_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header,rva_for_shell_code_section_header)
+
+        # Adjust BaseOfCode
+        MultiByteHandler.set_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_OF_CODE_RVA, rva_for_shell_code_section_header)
 
     def _update_checksum(self, header_offset):
         checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
