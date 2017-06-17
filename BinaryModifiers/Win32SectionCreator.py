@@ -590,8 +590,6 @@ class Win32SectionCreator():
 
 
         self._file_align_shell_code(header_offset, entrypoint_rva - new_section_rva)
-
-
         self._set_rva_delta(header_offset)
         self._adjust_data_directories(header_offset) #When testing just with the new header, adjust certificate table to take into account the shellcode..
         self._adjust_section_headers(header_offset) #Maybe call this one after incrementing the number of sections??
