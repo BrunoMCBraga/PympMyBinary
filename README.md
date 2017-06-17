@@ -16,7 +16,7 @@ So far, the infector is only able to infect Win32/64 binaries. Testing is ongoin
 * Packed binaries (e.g. FireFox). UPX the binary before using this. It is sill being tested.
 
 ## Tested software and issues
-* ImmunityDebugger_1_85_setup.exe (MD5: b94ff046f678a5e89d06007ea24c57ec): has to be ran with /NCRC flag to disable NSIS integrity check
+* ImmunityDebugger_1_85_setup.exe (MD5: b94ff046f678a5e89d06007ea24c57ec): has to be ran with /NCRC flag to disable NSIS integrity check. Tested with section creator module.
 * Wireshark-win32-2.2.7.exe (MD5: ab254d59f70aec9178aeb8a76a24de50): Currently creting a new section. This is causing NSIS to fail because i am inserting the shellcode after the last section. However, NSIS has Side-by-side configurations between the last section and the certificate table which is causing the installer to fail. Will test with section appender.
 
 
