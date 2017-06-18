@@ -1,6 +1,7 @@
 from Utils.Win32BinaryUtils import Win32BinaryUtils
 from Utils.Win32BinaryOffsetsAndSizes import Win32BinaryOffsetsAndSizes
 from Utils.MultiByteHandler import  MultiByteHandler
+import sys
 
 class Win32SectionCreator():
 
@@ -547,9 +548,10 @@ class Win32SectionCreator():
         #I have to check if the RAW size of the header crosses the RVA for the text section. For now, i can ignore. However i need to pad the header.
         rva_for_first_section = MultiByteHandler.get_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BEGINNING_OF_SECTION_HEADERS + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         if new_size_of_headers > rva_for_first_section:
-            print("Added section crossing RVA for first section.")
-            virtual_rva_delta = Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, new_size_of_headers)
-            self.rva_delta =  new_size_of_headers + virtual_rva_delta - rva_for_first_section
+            print("Added section crossing RVA for first section. This mode will not work. Leaving...")
+            sys.exit(1)
+            #virtual_rva_delta = Win32BinaryUtils.compute_padding_size_for_section_alignment(self.binary_data, header_offset, new_size_of_headers)
+            #self.rva_delta =  new_size_of_headers + virtual_rva_delta - rva_for_first_section
 
         return
 
@@ -573,7 +575,7 @@ class Win32SectionCreator():
         MultiByteHandler.set_dword_given_offset(self.binary_data, offset_for_address_of_entrypoint_rva_on_the_header,rva_for_shell_code_section_header)
 
         # Adjust BaseOfCode
-        MultiByteHandler.set_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_OF_CODE_RVA, rva_for_shell_code_section_header)
+        #MultiByteHandler.set_dword_given_offset(self.binary_data, header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_OF_CODE_RVA, rva_for_shell_code_section_header)
 
     def _update_checksum(self, header_offset):
         checksum_offset = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_CHECKSUM
