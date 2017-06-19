@@ -230,7 +230,7 @@ class Win32SectionCreator():
             return
 
         # new RAW = Old raw + new header + len(padded_shall_code)
-        MultiByteHandler.set_dword_given_offset(self.binary_data, certificate_table_raw_offset_offset, certificate_table_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding) #TODO: add shellcode
+        MultiByteHandler.set_dword_given_offset(self.binary_data, certificate_table_raw_offset_offset, certificate_table_offset + Win32BinaryOffsetsAndSizes.SIZE_OF_SECTION_HEADER + self.header_padding + len(self.shell_code)) #TODO: add shellcode
 
     def _adjust_base_relocation_table(self, header_offset):
         offset_to_base_relocation_table_rva_within_header = header_offset + Win32BinaryOffsetsAndSizes.OFFSET_TO_BASE_RELOCATION_TABLE_RVA

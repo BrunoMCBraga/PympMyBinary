@@ -33,7 +33,6 @@ class Win32SectionInjector:
 
         #Get formated shellcode
         self.shell_code = self.shell_code_generator.get_base_shell_code(offset_for_address_of_entrypoint_rva - self.injection_location_rva)
-
         # Injecting shellcode
         self._inject_shell_code()
         # Redirect execution to shellcode

@@ -5,7 +5,7 @@ from BinaryModifiers.Win32BinaryModifier import Win32BinaryModifier
 
 
 def _print_usage():
-    print("PympMyBinary -i input binary path -o output binary path -s shellcode generator name")
+    print("PympMyBinary -i input binary path -o output binary path -m shellcode generator name")
 
 
 
@@ -29,7 +29,7 @@ if __name__=='__main__':
     else:
         input_binary_path = sys.argv[sys.argv.index('-i') + 1]
         output_binary_path = sys.argv[sys.argv.index('-o') + 1]
-        shellcode_generator_name = sys.argv[sys.argv.index('-s') + 1]
+        shellcode_generator_name = sys.argv[sys.argv.index('-m') + 1] #try catch these flags
         if None in [input_binary_path, output_binary_path, shellcode_generator_name]:
             print("One or more arguments are null.")
             sys.exit(1)

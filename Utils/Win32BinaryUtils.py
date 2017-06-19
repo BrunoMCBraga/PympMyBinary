@@ -107,19 +107,19 @@ class Win32BinaryUtils:
         entrypoint_virtual_section_rva = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RVA_WITHIN_SECTION_HEADER)
         entrypoint_virtual_section_size = MultiByteHandler.get_dword_given_offset(binary_data, raw_offset_of_header_of_section_containing_entrypoint + Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_VIRTUAL_SIZE_WITHIN_SECTION_HEADER)
 
-        raw_offset_for_entrypoint_section = MultiByteHandler.get_dword_given_offset(binary_data, Win32BinaryOffsetsAndSizes.OFFSET_TO_SECTION_RAW_OFFSET_WITHIN_SECTION_HEADER)
-        raw_end_of_virtual_section = Win32BinaryUtils.convert_rva_to_raw(binary_data, header_offset, entrypoint_virtual_section_rva + entrypoint_virtual_section_size - 1)
-
+        rva_for_end_of_endpoint_section = entrypoint_virtual_section_rva + entrypoint_virtual_section_size - 1
+        raw_end_of_virtual_section = Win32BinaryUtils.convert_rva_to_raw(binary_data, header_offset, rva_for_end_of_endpoint_section)
         #It appears to be fetching the right bytes but the raw offset is not correct according to pe view.
+        found_non_zero_byte = False
         for index in range(0, region_length):
-            #print(hex(raw_end_of_virtual_section))
             region_byte = binary_data[raw_end_of_virtual_section]
-            #print(hex(region_byte))
             if region_byte != 0x0:
-                return (None, None)
-            raw_end_of_virtual_section-=1
-
-        return (entrypoint_virtual_section_rva + raw_end_of_virtual_section - raw_offset_for_entrypoint_section,raw_end_of_virtual_section)
+             found_non_zero_byte = True
+            rva_for_end_of_endpoint_section-=1
+            raw_end_of_virtual_section = rva_for_end_of_endpoint_section
+        if found_non_zero_byte:
+            print("The memory region where the shellcode will be inserted contains non-zero bytes. This may be valid code...")
+        return (rva_for_end_of_endpoint_section, Win32BinaryUtils.convert_rva_to_raw(binary_data, header_offset, rva_for_end_of_endpoint_section))
 
 
     @staticmethod
