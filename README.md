@@ -1,35 +1,31 @@
 # PympMyBinary
 
 
-Python tool to infect binaries with shellcode. The tool infects in one of three modes (by the following order):
-* **Injection at virtual section slack**: assuming a shellcode with size x, the last x bytes of the virtual space for the section containing the entrypoint are overwritten with the shellcode. This mode is only employed if the x bytes are zero so that no legitimate instructions are overwritten.
-*  **Entrypoint section append**: shell code is appended at the end of the entrypoint section. Headers and offsets are adjusted. This assumes a relocation table. If the relocation table is not detected, the third mode is employed.
-* **New section**: a minimalistic section is created containing the shellcode.
-
+Python tool to infect binaries with shellcode. The tool infects in one of three modes:
+* **Injection at virtual section slack**: assuming a shellcode with size x, the last x bytes of the virtual space for the section containing the entrypoint are overwritten with the shellcode. This mode may overwrite legitimate assembly from the application so a warning is provided.
+*  **Entrypoint section append**: shellcode is appended at the end of the entrypoint section. If the virtual size of the entrypoint section and the shellcode cross the RVA for the following section, the tampering fails. Messing with section RVAs is unwise since the code application relies on relative addresses.
+* **New section**: a minimalistic section is created containing the shellcode. If the new section header together with the remaining header crosses the RVA for the first section, the tampering fails. Messing with section RVAs is unwise since the code application relies on relative addresses.
 
 
 ## What works?
-So far, the infector is only able to infect Win32/64 binaries. Testing is ongoing since some sections (e.g. debug table, certificate table) are rare. The section injector is working but it is hard to test since binaries are compiled with low slack to minimize memory fingerprint. Section appender has worked in the past but i have been working on the section creator. See tested software.
+So far, the infector is only able to infect Win32/64 binaries. Testing is ongoing since some sections (e.g. debug table, certificate table) are rare. 
 
 ## What does not?
 * Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
 * Packed binaries (e.g. FireFox). UPX the binary before using this. It is sill being tested.
 
-## Tested software and issues
-* ImmunityDebugger_1_85_setup.exe (MD5: b94ff046f678a5e89d06007ea24c57ec): has to be ran with /NCRC flag to disable NSIS integrity check. Tested with section creator module.
-* Wireshark-win32-2.2.7.exe (MD5: ab254d59f70aec9178aeb8a76a24de50): Currently creting a new section. This is causing NSIS to fail because i am inserting the shellcode after the last section. However, NSIS has Side-by-side configurations between the last section and the certificate table which is causing the installer to fail. Will test with section appender.
-
+I have tested a simple NOP sled using the three modes for some well-known binaries like Google Chrome, Skype, Wireshark, etc. Due to the RVA thing i have explained previously, some of them were not tamperable using certain modes, only others (e.g. Wireshark only worked when a new section was created). For cases where NSIS is used (e.g. Wireshark), the application must be ran with /NCRC to disable the integrity verification from NSIS.
 
 ## Usage
 ```bash
-PympMyBinary -i input binary path -o output binary path -s shellcode generator name
+PympMyBinary -i input binary path -o output binary path -sm shellcode generator name -m modifier
 ```
-Where shellcode generator name is one of the filenames on ShellCodeGenerators package.
+Where shellcode generator name is one of the filenames on ShellCodeGenerators package and modifier is one of the binary modifers on (surprise!) BinaryModifiers.
 
 ## Roadmap
 * Elf infection modules
 * .NET infection modules
-
+* Infection using TLS 
 
 Win32 binary modifier and supporting classes assume the following model:
 
