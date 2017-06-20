@@ -18,7 +18,27 @@ I have tested a simple NOP sled using the three modes for some well-known binari
 
 ## Usage
 ```bash
-PympMyBinary -i input binary path -o output binary path -sm shellcode generator name -m modifier
+       ____                        __  ___      ____  _
+      / __ \__  ______ ___  ____  /  |/  /_  __/ __ )(_)___  ____ ________  __
+     / /_/ / / / / __ `__ \/ __ \/ /|_/ / / / / __  / / __ \/ __ `/ ___/ / / /
+    / ____/ /_/ / / / / / / /_/ / /  / / /_/ / /_/ / / / / / /_/ / /  / /_/ /
+   /_/    \__, /_/ /_/ /_/ .___/_/  /_/\__, /_____/_/_/ /_/\__,_/_/   \__, /
+         /____/         /_/           /____/                         /____/
+                   
+Invalid number of arguments.
+PympMyBinary -i input binary path -o output binary path -sm shellcode generator name -m modifier name
+
+    -i: path for clean binary
+    -o: path to infected binary
+    -sm: shellcode module name. Check the ShellCodeGenerators package (e.g. -m NOPSled)
+    -m: modifier. Check the BinaryModifiers package:
+        - Win32SectionAppender: Inserts the shellcode at the end of entrypoint's virtual section. It will fail if the shellcode crosses the RVA
+         for the next section.
+        - Win32SectionCreator: creates a new section on the binary and puts the shellcode there. This modifier fails if the new section header crosses
+        the RVA for the first section.
+        - Win32SectionInjector: overwrites x bytes at the end of entrypoint's virtual section. x bytes is the size of the shellcode. This modifier may
+        overwrite important assembly.
+
 ```
 Where shellcode generator name is one of the filenames on ShellCodeGenerators package and modifier is one of the binary modifers on (surprise!) BinaryModifiers.
 
