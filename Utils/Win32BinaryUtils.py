@@ -118,7 +118,7 @@ class Win32BinaryUtils:
             rva_for_end_of_endpoint_section-=1
             raw_end_of_virtual_section = rva_for_end_of_endpoint_section
         if found_non_zero_byte:
-            print("The memory region where the shellcode will be inserted contains non-zero bytes. This may be valid code...")
+            print("The memory region where the shellcode will be inserted contains non-zero bytes. This may be valid code.")
         return (rva_for_end_of_endpoint_section, Win32BinaryUtils.convert_rva_to_raw(binary_data, header_offset, rva_for_end_of_endpoint_section))
 
 
