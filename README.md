@@ -40,7 +40,6 @@ PympMyBinary -i input binary path -o output binary path -sm shellcode generator 
         overwrite important assembly.
 
 ```
-Where shellcode generator name is one of the filenames on ShellCodeGenerators package and modifier is one of the binary modifers on (surprise!) BinaryModifiers.
 
 ## Roadmap
 * Elf infection modules
