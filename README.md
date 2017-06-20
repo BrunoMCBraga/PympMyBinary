@@ -8,13 +8,13 @@ Python tool to infect binaries with shellcode. The tool infects in one of three 
 
 
 ## What works?
-So far, the infector is only able to infect Win32/64 binaries. Testing is ongoing since some sections (e.g. debug table, certificate table) are rare. 
+So far, the infector is only able to infect Win32/64 binaries. 
 
 ## What does not?
 * Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
 * Packed binaries (e.g. FireFox). UPX the binary before using this. It is sill being tested.
 
-I have tested a simple NOP sled using the three modes for some well-known binaries like Google Chrome, Skype, Wireshark, etc. Due to the RVA thing i have explained previously, some of them were not tamperable using certain modes, only others (e.g. Wireshark only worked when a new section was created). For cases where NSIS is used (e.g. Wireshark), the application must be ran with /NCRC to disable the integrity verification from NSIS.
+I have tested a simple NOP sled using the three modes for some well-known binaries like Google Chrome, Skype, Wireshark, etc. Due to the RVA thing i have explained previously, some of them were not tamperable using certain modes, only others (e.g. Wireshark only worked when a new section was created). 
 
 ## Usage
 ```bash
