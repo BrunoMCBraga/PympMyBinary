@@ -40,6 +40,7 @@ if __name__=='__main__':
 
     clear_command = 'cls' if os.name == 'nt' else 'clear'
     os.system(clear_command)
+    _print_title()
 
 
     input_binary_path = None
@@ -50,6 +51,7 @@ if __name__=='__main__':
 
     if len(sys.argv) != 9:
         print("Invalid number of arguments.")
+        _print_usage()
         sys.exit(1)
     else:
         input_binary_path = sys.argv[sys.argv.index('-i') + 1] if '-i' in sys.argv else None
@@ -60,7 +62,6 @@ if __name__=='__main__':
 
     if None in (input_binary_path, output_binary_path, shellcode_generator_name, modifier_name):
         print("Missing arguments.")
-        _print_title()
         _print_usage()
         sys.exit(1)
 
