@@ -1,6 +1,5 @@
 import importlib
 import os
-
 import sys
 
 from BinaryModifierStubs.Win32BinaryModifierStub import  Win32BinaryModifierStub
