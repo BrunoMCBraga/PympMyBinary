@@ -6,6 +6,7 @@ Python tool to infect binaries with shellcode. The tool infects in one of three 
 *  **Entrypoint section append**: shellcode is appended at the end of the entrypoint section. If the virtual size of the entrypoint section and the shellcode cross the RVA for the following section, the tampering fails. Messing with section RVAs is unwise since the code application relies on relative addresses.
 * **New section**: a minimalistic section is created containing the shellcode. If the new section header together with the remaining header crosses the RVA for the first section, the tampering fails. Messing with section RVAs is unwise since the code application relies on relative addresses.
 
+Regardless of the mode, the entrypoint RVA is overwritten so that the execution starts with the shellcode. The execution then passes to the original RVA. This requires the shellcode to be tuned with a negative jmp (details).
 
 ## What works?
 So far, the infector is only able to infect Win32/64 binaries. 
