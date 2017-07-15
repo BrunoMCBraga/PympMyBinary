@@ -13,7 +13,7 @@ So far, the infector is only able to infect Win32/64 binaries.
 
 ## What does not?
 * Integrity checks implemented by software installers like NSIS cause the execution to fail. Testing with those requires running the binaries with "/NCRC" flag. 
-* Packed binaries (e.g. FireFox). Unpack the binary before using this. It is sill being tested.
+* Packed binaries (e.g. FireFox). Unpack the binary before using this. 
 
 I have tested a simple NOP sled using the three modes for some well-known binaries like Google Chrome, Skype, Wireshark, etc. Due to the RVA thing i have explained previously, some of them were not tamperable using certain modes, only others (e.g. Wireshark only worked when a new section was created). 
 
