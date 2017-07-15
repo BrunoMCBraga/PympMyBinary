@@ -43,7 +43,7 @@ PympMyBinary -i input binary path -o output binary path -sm shellcode generator 
 ```
 
 ## Roadmap
-* Elf infection modules
+* ELF infection modules
 * .NET infection modules
 * Infection using TLS 
 
