@@ -42,10 +42,6 @@ PympMyBinary -i input binary path -o output binary path -sm shellcode generator 
 
 ```
 
-## Roadmap
-* ELF infection modules
-* .NET infection modules
-* Infection using TLS 
 
 Win32 binary modifier and supporting classes assume the following model:
 
@@ -54,4 +50,4 @@ Win32 binary modifier and supporting classes assume the following model:
 
 
 
-PEView has been my reference softwate to check for binary correctness.
+PEView has been my reference software to check for binary correctness.
