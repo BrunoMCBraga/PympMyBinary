@@ -51,3 +51,7 @@ Win32 binary modifier and supporting classes assume the following model:
 
 
 PEView has been my reference software to check for binary correctness.
+
+
+## Found this useful? Help me buy a cup of coffee to keep my warm during the harsh winters:
+https://www.paypal.com/donate?hosted_button_id=ATZQDP4AWECPL
