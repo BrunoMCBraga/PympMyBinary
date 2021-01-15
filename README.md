@@ -54,4 +54,4 @@ PEView has been my reference software to check for binary correctness.
 
 
 ## Found this useful? Help me buy a cup of coffee to keep me warm during the harsh winters:
-https://www.paypal.com/donate?hosted_button_id=ATZQDP4AWECPL
+https://www.paypal.com/donate/?hosted_button_id=UDFXULV3WV5GL
